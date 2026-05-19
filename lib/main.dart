@@ -944,36 +944,68 @@ class PerfilScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            // 👤 CABECERA DE PERFIL
+            // 👤 CABECERA DE PERFIL (Condicional según login)
             Center(
               child: Column(
                 children: [
-                  Stack(
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFFFF6B00), width: 2),
-                          color: const Color(0xFF0F1926),
+                  if (toofastProvider.estaLogueado) ...[
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundColor: const Color(0xFF0F1926),
+                          backgroundImage: NetworkImage(toofastProvider.usuario!.photoUrl ?? ''),
+                          child: toofastProvider.usuario!.photoUrl == null 
+                              ? const Icon(Icons.person, size: 50, color: Colors.white)
+                              : null,
                         ),
-                        child: const Icon(Icons.person, size: 50, color: Colors.white),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(color: Color(0xFF00FF66), shape: BoxShape.circle),
-                          child: const Icon(Icons.bolt, size: 16, color: Color(0xFF070E17)),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(color: Color(0xFF00FF66), shape: BoxShape.circle),
+                            child: const Icon(Icons.bolt, size: 16, color: Color(0xFF070E17)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(toofastProvider.usuario!.displayName ?? 'Usuario', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text(toofastProvider.usuario!.email, style: const TextStyle(fontSize: 13, color: Color(0xFF55657E))),
+                  ] else ...[
+                    const CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Color(0xFF0F1926),
+                      child: Icon(Icons.person_outline, size: 50, color: Colors.white24),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text('Inicia sesión para sincronizar', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          await toofastProvider.iniciarSesionGoogle();
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error al iniciar sesión: $e')),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.login, color: Colors.white),
+                      label: const Text('Entrar con Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F1926),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Color(0xFF1E2D42)),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Usuario Toofast', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const Text('Cazador de ofertas Pro', style: TextStyle(fontSize: 13, color: Color(0xFF55657E))),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1053,19 +1085,20 @@ class PerfilScreen extends StatelessWidget {
             const SizedBox(height: 40),
             
             // 🚪 BOTÓN DE CERRAR SESIÓN / ELIMINAR DATOS
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.logout, color: Color(0xFFFF455B), size: 20),
-                label: const Text('Cerrar sesión', style: TextStyle(color: Color(0xFFFF455B), fontWeight: FontWeight.bold)),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: const Color(0xFFFF455B).withOpacity(0.1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            if (toofastProvider.estaLogueado)
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () => toofastProvider.cerrarSesion(),
+                  icon: const Icon(Icons.logout, color: Color(0xFFFF455B), size: 20),
+                  label: const Text('Cerrar sesión', style: TextStyle(color: Color(0xFFFF455B), fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: const Color(0xFFFF455B).withOpacity(0.1),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
               ),
-            ),
             const SizedBox(height: 20),
           ],
         ),

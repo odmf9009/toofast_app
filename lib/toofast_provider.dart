@@ -5,10 +5,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class ToofastProvider extends ChangeNotifier {
   bool _isEscaneando = false;
   bool get isEscaneando => _isEscaneando;
+
+  // 🔑 Variables de Autenticación
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  GoogleSignInAccount? _usuario;
+  GoogleSignInAccount? get usuario => _usuario;
+  bool get estaLogueado => _usuario != null;
 
   String _categoria = 'vehiculos';
   String get categoria => _categoria;
@@ -52,6 +59,28 @@ class ToofastProvider extends ChangeNotifier {
   ToofastProvider() {
     _cargarDatosLocales();
     _inicializarNotificaciones();
+    _revisarLoginSilencioso();
+  }
+
+  Future<void> _revisarLoginSilencioso() async {
+    _usuario = await _googleSignIn.signInSilently();
+    notifyListeners();
+  }
+
+  Future<void> iniciarSesionGoogle() async {
+    try {
+      _usuario = await _googleSignIn.signIn();
+      notifyListeners();
+    } catch (error) {
+      print("🔴 ERROR DETALLADO DE GOOGLE: $error");
+      rethrow;
+    }
+  }
+
+  Future<void> cerrarSesion() async {
+    await _googleSignIn.signOut();
+    _usuario = null;
+    notifyListeners();
   }
 
   Future<void> _inicializarNotificaciones() async {

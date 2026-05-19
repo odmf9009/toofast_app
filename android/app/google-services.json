@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "945715190761",
+    "project_id": "toofast-8c9b3",
+    "storage_bucket": "toofast-8c9b3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:945715190761:android:4de416f81213622790c978",
+        "android_client_info": {
+          "package_name": "com.example.toofast_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "945715190761-0an68qjugri4v1f0jm1ugrp256ria6ls.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.toofast_app",
+            "certificate_hash": "a4154153aaf2e4a1356e539b1ad0e5f38292c082"
+          }
+        },
+        {
+          "client_id": "945715190761-ul17kj9e7vkvppblulbdp6cv05ltu6pu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOu3yZnLXq9OH9bPhzfRyHNcO9Q9kA52A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "945715190761-ul17kj9e7vkvppblulbdp6cv05ltu6pu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

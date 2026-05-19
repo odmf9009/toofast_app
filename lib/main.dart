@@ -77,7 +77,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const EstadoEscaneoScreen(),
     const AlertasOfertasScreen(),
     const GuardadosScreen(),
-    const AjustesScreen(),
+    const PerfilScreen(),
   ];
 
   @override
@@ -105,7 +105,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Escanear'),
           BottomNavigationBarItem(icon: Icon(Icons.notifications_none), label: 'Alertas'),
           BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Guardados'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Ajustes'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Perfil'),
         ],
       ),
     );
@@ -921,24 +921,209 @@ class GuardadosScreen extends StatelessWidget {
 }
 
 // ====================================================================
-// --- PANTALLA 5: AJUSTES ---
+// --- PANTALLA 5: PERFIL ---
 // ====================================================================
-class AjustesScreen extends StatelessWidget {
-  const AjustesScreen({super.key});
+class PerfilScreen extends StatelessWidget {
+  const PerfilScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
+    final toofastProvider = Provider.of<ToofastProvider>(context);
+
     return Scaffold(
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, leading: const Icon(Icons.menu, color: Color(0xFF55657E)), title: const Center(child: Text('Ajustes del sistema', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)))),
-      body: const Center(child: Text('Configuración del sistema lista', style: TextStyle(color: Color(0xFF55657E)))),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: const Icon(Icons.menu, color: Color(0xFF55657E)),
+        title: const Center(
+          child: Text('Mi Perfil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+        ),
+        actions: const [Icon(Icons.edit_outlined, color: Color(0xFF55657E)), SizedBox(width: 16)],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            // 👤 CABECERA DE PERFIL
+            Center(
+              child: Column(
+                children: [
+                  Stack(
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFFF6B00), width: 2),
+                          color: const Color(0xFF0F1926),
+                        ),
+                        child: const Icon(Icons.person, size: 50, color: Colors.white),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(color: Color(0xFF00FF66), shape: BoxShape.circle),
+                          child: const Icon(Icons.bolt, size: 16, color: Color(0xFF070E17)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Usuario Toofast', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                  const Text('Cazador de ofertas Pro', style: TextStyle(fontSize: 13, color: Color(0xFF55657E))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+
+            // 📊 ESTADÍSTICAS RÁPIDAS
+            Row(
+              children: [
+                Expanded(child: _buildStatCard('Favoritos', '${toofastProvider.ofertasGuardadas.length}', Icons.favorite_border)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildStatCard('Vistos', '${toofastProvider.ofertasEncontradas.length}', Icons.remove_red_eye_outlined)),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // 👑 SECCIÓN PREMIUM
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF6B00), Color(0xFFFF9E00)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF6B00).withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.workspace_premium, color: Colors.white, size: 30),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Membresía Premium',
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Desbloquea escaneos ilimitados y filtros avanzados',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 14),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+
+            // ⚙️ SECCIONES DE AJUSTES
+            _buildSectionTitle('Preferencias de App'),
+            _buildSettingTile(Icons.notifications_none, 'Notificaciones de radar', 'Sonido y vibración', true),
+            _buildSettingTile(Icons.history, 'Limpiar historial', 'Borrar búsquedas pasadas', false),
+            
+            const SizedBox(height: 24),
+            _buildSectionTitle('Cuenta y Seguridad'),
+            _buildSettingTile(Icons.lock_outline, 'Privacidad', 'Gestionar mis datos', false),
+            _buildSettingTile(Icons.info_outline, 'Acerca de Toofast', 'Versión 1.0.2', false),
+
+            const SizedBox(height: 40),
+            
+            // 🚪 BOTÓN DE CERRAR SESIÓN / ELIMINAR DATOS
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.logout, color: Color(0xFFFF455B), size: 20),
+                label: const Text('Cerrar sesión', style: TextStyle(color: Color(0xFFFF455B), fontWeight: FontWeight.bold)),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  backgroundColor: const Color(0xFFFF455B).withOpacity(0.1),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildPlaceholder() {
+  Widget _buildStatCard(String label, String value, IconData icon) {
     return Container(
-      width: 85,
-      height: 85,
-      color: const Color(0xFF070E17),
-      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1926),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E2D42)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFFFF6B00), size: 20),
+          const SizedBox(height: 12),
+          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+          Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF55657E), fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0, left: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(title.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF404E62), letterSpacing: 1.2)),
+      ),
+    );
+  }
+
+  Widget _buildSettingTile(IconData icon, String title, String subtitle, bool isSwitch) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1926),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF1E2D42)),
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: const Color(0xFF070E17), borderRadius: BorderRadius.circular(8)),
+          child: Icon(icon, color: const Color(0xFF55657E), size: 20),
+        ),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Color(0xFF55657E), fontSize: 12)),
+        trailing: isSwitch 
+            ? Switch(value: true, onChanged: (v) {}, activeColor: const Color(0xFFFF6B00))
+            : const Icon(Icons.arrow_forward_ios, color: Color(0xFF1E2D42), size: 14),
+        onTap: () {},
+      ),
     );
   }
 }

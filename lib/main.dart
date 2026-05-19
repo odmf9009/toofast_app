@@ -5,13 +5,6 @@ import 'dart:math' as math;
 import 'toofast_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart'; // 👈 1. Importa el paquete
-import 'dart:math' as math;
-import 'toofast_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 void main() {
   // 👈 2. Asegura la inicialización de bindings nativos
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +49,15 @@ class _ToofastAppState extends State<ToofastApp> {
         ),
       ),
       home: const MainNavigationScreen(),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: 85,
+      height: 85,
+      color: const Color(0xFF070E17),
+      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
     );
   }
 }
@@ -401,6 +403,15 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
       ),
     );
   }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: 85,
+      height: 85,
+      color: const Color(0xFF070E17),
+      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
+    );
+  }
 }
 
 // ====================================================================
@@ -546,6 +557,15 @@ class _EstadoEscaneoScreenState extends State<EstadoEscaneoScreen> with SingleTi
       ],
     );
   }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: 85,
+      height: 85,
+      color: const Color(0xFF070E17),
+      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
+    );
+  }
 }
 
 // ====================================================================
@@ -614,59 +634,124 @@ class AlertasOfertasScreen extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: const Color(0xFF0F1926), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF1E2D42))),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: Text(item['titulo']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                      const SizedBox(width: 10),
-                      Text('\$${item['precio']}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF00FF66))),
-                    ],
+                  // 🖼️ MINIATURA DE LA IMAGEN (Siempre visible para depuración)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: (item['imagen'] != null && item['imagen']!.isNotEmpty)
+                        ? Image.network(
+                            item['imagen']!,
+                            width: 85,
+                            height: 85,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+                          )
+                        : _buildPlaceholder(),
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(item['detalles']!, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7A90), height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.access_time, color: Color(0xFF55657E), size: 14),
-                          const SizedBox(width: 6),
-                          Text(item['tiempo']!, style: const TextStyle(color: Color(0xFF55657E), fontSize: 11)),
-                          const SizedBox(width: 12),
-                          const Icon(Icons.open_in_new, color: Color(0xFF40526B), size: 13),
-                        ],
-                      ),
-                      IconButton(
-                        icon: Icon(
-                            guardado ? Icons.favorite : Icons.favorite_border,
-                            color: guardado ? const Color(0xFFFF6B00) : const Color(0xFF55657E),
-                            size: 20
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: Text(item['titulo']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                            const SizedBox(width: 10),
+                            Text('\$${item['precio']}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF00FF66))),
+                          ],
                         ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () {
-                          toofastProvider.toggleFavorito(item);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(guardado ? 'Eliminado de guardados' : 'Guardado en favoritos local'),
-                              duration: const Duration(seconds: 1),
+                        const SizedBox(height: 8),
+                        Text(item['detalles']!, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7A90), height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 14),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.access_time, color: Color(0xFFFFD700), size: 13),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${item['tiempo'] ?? ''}',
+                                        style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
+                                      ),
+                                      if (item['visitas'] != null && item['visitas']!.isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF55657E), size: 13),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${item['visitas']}',
+                                          style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
+                                        ),
+                                      ],
+                                      const SizedBox(width: 8),
+                                      const Icon(Icons.open_in_new, color: Color(0xFFFF6B00), size: 12),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.location_on_outlined, color: Color(0xFF3273CD), size: 13),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          '${item['ubicacion'] ?? ''}',
+                                          style: const TextStyle(color: Color(0xFF55657E), fontSize: 10, overflow: TextOverflow.ellipsis),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          );
-                        },
-                      )
-                    ],
-                  )
+                            IconButton(
+                              icon: Icon(
+                                  guardado ? Icons.favorite : Icons.favorite_border,
+                                  color: guardado ? const Color(0xFFFF6B00) : const Color(0xFF55657E),
+                                  size: 20
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () {
+                                toofastProvider.toggleFavorito(item);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(guardado ? 'Eliminado de guardados' : 'Guardado en favoritos local'),
+                                    duration: const Duration(seconds: 1),
+                                  ),
+                                );
+                              },
+                            )
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: 85,
+      height: 85,
+      color: const Color(0xFF070E17),
+      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
     );
   }
 }
@@ -721,47 +806,116 @@ class GuardadosScreen extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: const Color(0xFF0F1926), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF1E2D42))),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: Text(item['titulo']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                      const SizedBox(width: 10),
-                      Text('\$${item['precio']}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF00FF66))),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(item['detalles']!, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7A90), height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Text(item['tiempo']!, style: const TextStyle(color: Color(0xFF55657E), fontSize: 11)),
-                          const SizedBox(width: 12),
-                          const Icon(Icons.open_in_new, color: Color(0xFF40526B), size: 13),
-                        ],
+                  // 🖼️ MINIATURA DE LA IMAGEN EN GUARDADOS
+                  if (item['imagen'] != null && item['imagen']!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          item['imagen']!,
+                          width: 70,
+                          height: 70,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 70, height: 70, color: const Color(0xFF070E17),
+                            child: const Icon(Icons.image_not_supported, color: Color(0xFF1E2D42)),
+                          ),
+                        ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Color(0xFFFF455B), size: 20),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () {
-                          toofastProvider.toggleFavorito(item);
-                        },
-                      )
-                    ],
-                  )
+                    ),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: Text(item['titulo']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                            const SizedBox(width: 10),
+                            Text('\$${item['precio']}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF00FF66))),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(item['detalles']!, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7A90), height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 14),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.access_time, color: Color(0xFFFFD700), size: 13),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${item['tiempo'] ?? ''}',
+                                        style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
+                                      ),
+                                      if (item['visitas'] != null && item['visitas']!.isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF55657E), size: 13),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${item['visitas']}',
+                                          style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
+                                        ),
+                                      ],
+                                      const SizedBox(width: 8),
+                                      const Icon(Icons.open_in_new, color: Color(0xFFFF6B00), size: 12),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.location_on_outlined, color: Color(0xFF3273CD), size: 13),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          '${item['ubicacion'] ?? ''}',
+                                          style: const TextStyle(color: Color(0xFF55657E), fontSize: 10, overflow: TextOverflow.ellipsis),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Color(0xFFFF455B), size: 20),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () {
+                                toofastProvider.toggleFavorito(item);
+                              },
+                            )
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: 85,
+      height: 85,
+      color: const Color(0xFF070E17),
+      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
     );
   }
 }
@@ -776,6 +930,15 @@ class AjustesScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, leading: const Icon(Icons.menu, color: Color(0xFF55657E)), title: const Center(child: Text('Ajustes del sistema', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)))),
       body: const Center(child: Text('Configuración del sistema lista', style: TextStyle(color: Color(0xFF55657E)))),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: 85,
+      height: 85,
+      color: const Color(0xFF070E17),
+      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
     );
   }
 }

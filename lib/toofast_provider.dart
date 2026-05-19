@@ -137,7 +137,10 @@ class ToofastProvider extends ChangeNotifier {
     print("🌐 [Radar Real] Conectando a la sección oficial de $_categoria mediante navegador oculto...");
 
     try {
-      final String urlOficial = 'https://www.revolico.com/search?category=$_categoria';
+      // 🚀 EVITAR CACHÉ: Añadimos un timestamp único a la URL
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String urlOficial = 'https://www.revolico.com/search?category=$_categoria&t=$timestamp';
+      
       late HeadlessInAppWebView headlessWebView;
       bool yaProcesado = false;
 
@@ -146,7 +149,14 @@ class ToofastProvider extends ChangeNotifier {
             url: WebUri(urlOficial),
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
             }
+        ),
+        initialSettings: InAppWebViewSettings(
+          cacheMode: CacheMode.LOAD_NO_CACHE, // 🛑 Forzar carga sin caché
+          clearCache: true,                   // 🧹 Limpiar caché al iniciar
         ),
         onLoadStop: (controller, url) async {
           if (yaProcesado) return;
@@ -175,64 +185,113 @@ class ToofastProvider extends ChangeNotifier {
               int min = int.tryParse(_precioDesde) ?? 0;
               int max = int.tryParse(_precioHasta) ?? 999999;
 
-              apolloState.forEach((key, value) {
-                if (value is Map) {
-                  if (value.containsKey('price') && value.containsKey('title')) {
+              // 1. OBTENER LA LISTA ORDENADA DESDE EL JSON (Súper fiable)
+              List<dynamic> listaOrdenadaRefs = [];
+              try {
+                final rootQuery = apolloState['ROOT_QUERY'] ?? {};
+                String searchKey = rootQuery.keys.firstWhere((k) => k.startsWith('search'), orElse: () => "");
+                if (searchKey.isNotEmpty) {
+                  listaOrdenadaRefs = rootQuery[searchKey]['results'] ?? [];
+                }
+              } catch (e) { print("Error buscando lista ordenada en JSON: $e"); }
 
-                    String idAnuncio = value['id']?.toString() ?? key;
-                    String tituloAnuncio = value['title']?.toString() ?? 'Sin título';
-                    String precioAnuncioStr = value['price']?.toString() ?? '0';
-                    String detallesAnuncio = value['description']?.toString() ?? '';
+              Iterable<dynamic> itemsParaProcesar = listaOrdenadaRefs.isNotEmpty 
+                  ? listaOrdenadaRefs 
+                  : apolloState.values;
 
-                    if (precioAnuncioStr.contains('.')) {
-                      precioAnuncioStr = precioAnuncioStr.split('.')[0];
-                    }
+              int contadorHits = 0;
+              for (var item in itemsParaProcesar) {
+                if (contadorHits >= 20) break;
+                
+                var value = (item is Map && item.containsKey('__ref')) 
+                    ? apolloState[item['__ref']] 
+                    : item;
 
-                    int precioAnuncio = int.tryParse(precioAnuncioStr.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+                if (value is Map && value.containsKey('price') && value.containsKey('title')) {
+                  // Filtro: Destacados
+                  bool esDestacado = value['isFeatured'] == true || value['isPremium'] == true;
+                  if (esDestacado) continue;
 
-                    // 🎯 LÓGICA FILTRO PALABRA CLAVE
-                    bool coincidePalabra = true;
-                    if (_palabraClave.isNotEmpty) {
-                      // Creamos una expresión regular insensible a mayúsculas/minúsculas
-                      RegExp query = RegExp(_palabraClave, caseSensitive: false);
-                      bool enTitulo = query.hasMatch(tituloAnuncio);
-                      bool enDetalles = query.hasMatch(detallesAnuncio);
+                  String idAnuncio = value['id']?.toString() ?? "";
+                  String titulo = value['title']?.toString() ?? 'Sin título';
+                  String precioStr = value['price']?.toString() ?? '0';
+                  int precioNum = int.tryParse(precioStr.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
 
-                      if (!enTitulo && !enDetalles) {
-                        coincidePalabra = false; // No cumple con el criterio del usuario
+                  // Filtro: Rango de precio
+                  if (precioNum < min || precioNum > max) continue;
+
+                  // Filtro: Palabra clave
+                  bool coincidePalabra = true;
+                  if (_palabraClave.isNotEmpty) {
+                    RegExp query = RegExp(_palabraClave, caseSensitive: false);
+                    if (!query.hasMatch(titulo)) coincidePalabra = false;
+                  }
+                  if (!coincidePalabra) continue;
+
+                  // --- 🕵️‍♂️ EXTRACCIÓN DEL TIEMPO REAL DESDE EL HTML (Híbrido) ---
+                  String tiempo = "Reciente";
+                  String ubicacion = "Cuba";
+                  String fotos = "0";
+
+                  try {
+                    // Limpiamos el ID para asegurarnos de que sea solo el número
+                    String idNumerico = idAnuncio.replaceAll(RegExp(r'\D'), '');
+                    
+                    // Buscamos el bloque li que contiene el enlace con ese ID
+                    // El patrón busca: <li ... href="...-ID" ... </li>
+                    RegExp regBloque = RegExp('<li[^>]*data-cy="adRow"[^>]*>.*?href="[^"]*-$idNumerico".*?</li>', dotAll: true);
+                    var matchBloque = regBloque.firstMatch(html!);
+                    
+                    if (matchBloque != null) {
+                      String bloqueHtml = matchBloque.group(0)!;
+                      
+                      // Extraer Tiempo (<time>hace 5 minutos</time>)
+                      RegExp rTime = RegExp(r'<time>([^<]+)</time>');
+                      var mTime = rTime.firstMatch(bloqueHtml);
+                      if (mTime != null) {
+                        tiempo = mTime.group(1)!.trim();
+                      }
+
+                      // Extraer Ubicación (<span>Plaza, La Habana</span>)
+                      // Buscamos el primer span que tenga el formato "Texto, Texto"
+                      RegExp rLoc = RegExp(r'<span>([^<]+,\s+[^<]+)</span>');
+                      var mLoc = rLoc.firstMatch(bloqueHtml);
+                      if (mLoc != null) {
+                        ubicacion = mLoc.group(1)!.trim();
+                      }
+
+                      // Extraer Fotos (data-cy="adPhoto")
+                      RegExp rPhotos = RegExp(r'data-cy="adPhoto"[^>]*>.*?(\d+)', dotAll: true);
+                      var mPhotos = rPhotos.firstMatch(bloqueHtml);
+                      if (mPhotos != null) {
+                        fotos = mPhotos.group(1)!;
                       }
                     }
+                  } catch (e) { print("Error extrayendo datos HTML para $idAnuncio: $e"); }
 
-                    if (precioAnuncio >= min && precioAnuncio <= max && coincidePalabra) {
-                      print("🚗 [Hit Encontrado] $tituloAnuncio -> \$$precioAnuncio");
+                  contadorHits++;
+                  String permalink = value['permalink']?.toString() ?? '';
+                  String urlDirecta = "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink";
 
-                      String permalink = value['permalink']?.toString() ?? '';
-                      String urlDirecta = "";
+                  var ofertaMap = {
+                    'id': idAnuncio,
+                    'titulo': titulo,
+                    'precio': precioNum.toString(),
+                    'tiempo': tiempo,
+                    'ubicacion': ubicacion,
+                    'fotos': fotos,
+                    'visitas': '',
+                    'enlace': urlDirecta,
+                    'imagen': '',
+                    'detalles': value['description']?.toString() ?? '',
+                  };
 
-                      if (permalink.isNotEmpty) {
-                        urlDirecta = "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink";
-                      } else {
-                        urlDirecta = "https://www.revolico.com/search?category=$_categoria";
-                      }
-
-                      var ofertaMap = {
-                        'id': idAnuncio,
-                        'titulo': tituloAnuncio,
-                        'precio': precioAnuncio.toString(),
-                        'tiempo': 'Reciente',
-                        'detalles': detallesAnuncio,
-                        'enlace': urlDirecta,
-                      };
-
-                      resultadosFiltrados.add(ofertaMap);
-
-                      if (!_idsNotificados.contains(idAnuncio)) {
-                        nuevosChollosParaNotificar.add(ofertaMap);
-                      }
-                    }
+                  resultadosFiltrados.add(ofertaMap);
+                  if (!_idsNotificados.contains(idAnuncio)) {
+                    nuevosChollosParaNotificar.add(ofertaMap);
                   }
                 }
-              });
+              }
 
               if (nuevosChollosParaNotificar.isNotEmpty && _isEscaneando) {
                 _dispararNotificacion(nuevosChollosParaNotificar.length);
@@ -242,8 +301,10 @@ class ToofastProvider extends ChangeNotifier {
               }
 
               _ofertasEncontradas = resultadosFiltrados;
-              print("🎯 [Radar Real] Procesados ${resultadosFiltrados.length} anuncios filtrados en Apollo.");
               notifyListeners();
+
+              // 🚀 ENRIQUECER EN SEGUNDO PLANO (Imágenes y Visitas)
+              _enriquecerDatosEnSegundoPlano(resultadosFiltrados);
 
             } catch (e) {
               print("⚠️ Error analizando los datos dentro del navegador: $e");
@@ -270,6 +331,69 @@ class ToofastProvider extends ChangeNotifier {
 
     } catch (e) {
       print("❌ Error crítico en el motor invisible: $e");
+    }
+  }
+
+  // 🕵️‍♂️ FUNCIÓN MAESTRA: Entra al anuncio y extrae TODO con precisión quirúrgica (Actualizado Estructura 2025)
+  Future<void> _enriquecerDatosEnSegundoPlano(List<Map<String, String>> ofertas) async {
+    for (var i = 0; i < ofertas.length; i++) {
+      if (!_isEscaneando) break;
+      
+      final url = ofertas[i]['enlace'];
+      if (url == null || url.isEmpty || !url.startsWith('http')) continue;
+
+      try {
+        final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 7));
+        
+        if (response.statusCode == 200) {
+          String html = response.body;
+
+          // 1. IMAGEN: og:image (Súper fiable)
+          RegExp regImg = RegExp(r'<meta property="og:image" content="([^"]+)"');
+          var matchImg = regImg.firstMatch(html);
+          if (matchImg != null) ofertas[i]['imagen'] = matchImg.group(1) ?? "";
+
+          // 2. EXTRACCIÓN FLEXIBLE (Múltiples patrones)
+
+          // A. Tiempo Real: NO SOBREESCRIBIR (Lo tomamos de la lista oficial)
+          // Se mantiene el valor capturado en _ejecutarScrapingReal
+
+          // B. Ubicación Exacta (Detecta el formato "Municipio, Provincia")
+          RegExp regLoc = RegExp(r'<span>([^<]+,\s+[^<]+)</span>|data-cy="adLocation"[^>]*>([^<]+)</p>');
+          var matchLoc = regLoc.firstMatch(html);
+          if (matchLoc != null) {
+            ofertas[i]['ubicacion'] = (matchLoc.group(1) ?? matchLoc.group(2))!.trim();
+          }
+
+          // C. Visitas
+          RegExp regVisits = RegExp(r'data-cy="adViewsLabel"[^>]*>([^<]+)</p>|(\d+)\s+visitas');
+          var matchVisits = regVisits.firstMatch(html);
+          if (matchVisits != null) {
+            ofertas[i]['visitas'] = (matchVisits.group(1) ?? matchVisits.group(2))!.trim();
+            if (!ofertas[i]['visitas']!.contains("visitas")) {
+              ofertas[i]['visitas'] = "${ofertas[i]['visitas']} visitas";
+            }
+          }
+
+          // D. Cantidad de Fotos (Detecta data-cy="adPhoto" o texto "X foto")
+          RegExp regPhotos = RegExp(r'data-cy="adPhoto"[^>]*>([^<]*\d+[^<]*)</span>|(\d+)\s+foto[s]?');
+          var matchPhotos = regPhotos.firstMatch(html);
+          if (matchPhotos != null) {
+            String raw = (matchPhotos.group(1) ?? matchPhotos.group(2))!;
+            // Extraer solo el número si hay texto extra
+            RegExp soloNum = RegExp(r'(\d+)');
+            var matchNum = soloNum.firstMatch(raw);
+            if (matchNum != null) ofertas[i]['fotos'] = matchNum.group(1)!;
+          }
+          
+          print("✅ [OK] ${ofertas[i]['titulo']} -> ${ofertas[i]['tiempo']}");
+          notifyListeners(); 
+        }
+      } catch (e) {
+        print("Error enriqueciendo anuncio ${ofertas[i]['id']}: $e");
+      }
+      
+      await Future.delayed(const Duration(milliseconds: 500));
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart'; // 👈 1. Importa el paquete
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'toofast_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -71,6 +72,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+  bool _autoNavegacionRealizada = false; // 🚩 Bandera para permitir el regreso manual
 
   final List<Widget> _screens = [
     const ConfigracionBusquedaScreen(),
@@ -82,6 +84,28 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final toofastProvider = Provider.of<ToofastProvider>(context);
+
+    // Si se detiene el escaneo, reseteamos la bandera para el próximo inicio
+    if (!toofastProvider.isEscaneando && _autoNavegacionRealizada) {
+      _autoNavegacionRealizada = false;
+    }
+
+    // ⚡ Auto-navegación: Solo ocurre UNA VEZ por sesión de escaneo cuando aparecen los primeros productos
+    if (_currentIndex == 1 && 
+        toofastProvider.isEscaneando && 
+        toofastProvider.ofertasEncontradas.isNotEmpty && 
+        !_autoNavegacionRealizada) {
+      
+      _autoNavegacionRealizada = true; // Marcamos que ya saltó
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _currentIndex = 2; // Saltar a Alertas (índice 2)
+        });
+      });
+    }
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -92,6 +116,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         onTap: (index) {
           setState(() {
             _currentIndex = index;
+            // Si el usuario toca manualmente una pestaña, permitimos que se quede ahí
+            if (index == 1) {
+               _autoNavegacionRealizada = true; 
+            }
           });
         },
         type: BottomNavigationBarType.fixed,
@@ -231,7 +259,7 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
                     ),
 
                     const SizedBox(height: 18),
-                    const Text('Rango de precio (USD)', style: TextStyle(color: Color(0xFF6B7A90), fontSize: 12)),
+                    _buildFeatureTitle('Rango de precio (USD)', !toofastProvider.esPremium),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -239,6 +267,7 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
                           child: _buildTextFieldReal(
                             controller: _desdeController,
                             prefix: 'Desde',
+                            enabled: toofastProvider.esPremium,
                           ),
                         ),
                         const Padding(padding: EdgeInsets.symmetric(horizontal: 10.0), child: Text('—', style: TextStyle(color: Color(0xFF55657E)))),
@@ -246,36 +275,37 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
                           child: _buildTextFieldReal(
                             controller: _hastaController,
                             prefix: 'Hasta',
+                            enabled: toofastProvider.esPremium,
                           ),
                         ),
                       ],
                     ),
 
                     const SizedBox(height: 18),
-                    const Text('Palabra clave (opcional)', style: TextStyle(color: Color(0xFF6B7A90), fontSize: 12)),
+                    _buildFeatureTitle('Palabra clave (opcional)', !toofastProvider.esPremium),
                     const SizedBox(height: 8),
 
-                    // 🔍 MODIFICADO: Campo de texto real y editable para la palabra clave
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(color: const Color(0xFF070E17), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF1E2D42))),
                       child: TextField(
                         controller: _palabraClaveController,
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                        decoration: const InputDecoration(
-                          hintText: 'Ej. Samsung, Smart TV',
-                          hintStyle: TextStyle(color: Color(0xFF404E62), fontSize: 13, fontWeight: FontWeight.normal),
+                        enabled: toofastProvider.esPremium,
+                        style: TextStyle(color: toofastProvider.esPremium ? Colors.white : Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          hintText: toofastProvider.esPremium ? 'Ej. Samsung, Smart TV' : 'Bloqueado (Solo Premium 🔒)',
+                          hintStyle: const TextStyle(color: Color(0xFF404E62), fontSize: 13, fontWeight: FontWeight.normal),
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: EdgeInsets.symmetric(vertical: 14),
-                          suffixIcon: Icon(Icons.search, color: Color(0xFF404E62), size: 18),
-                          suffixIconConstraints: BoxConstraints(minWidth: 24, minHeight: 24),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                          suffixIcon: const Icon(Icons.search, color: Color(0xFF404E62), size: 18),
+                          suffixIconConstraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                         ),
                       ),
                     ),
 
                     const SizedBox(height: 18),
-                    const Text('Frecuencia de escaneo', style: TextStyle(color: Color(0xFF6B7A90), fontSize: 12)),
+                    _buildFeatureTitle('Frecuencia de escaneo', !toofastProvider.esPremium),
                     const SizedBox(height: 8),
 
                     Container(
@@ -283,19 +313,35 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
                       decoration: BoxDecoration(color: const Color(0xFF070E17), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF1E2D42))),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
-                          value: toofastProvider.frecuencia,
+                          value: toofastProvider.esPremium ? toofastProvider.frecuencia : '1hora',
                           isExpanded: true,
                           dropdownColor: const Color(0xFF0F1926),
                           style: const TextStyle(color: Colors.white, fontSize: 14),
-                          items: const [
-                            DropdownMenuItem(value: '5min', child: Text('⏱️  Cada 5 minutos')),
-                            DropdownMenuItem(value: '10min', child: Text('⏱️  Cada 10 minutos')),
-                            DropdownMenuItem(value: '15min', child: Text('⏱️  Cada 15 minutos')),
-                            DropdownMenuItem(value: '30min', child: Text('⏱️  Cada 30 minutos')),
-                            DropdownMenuItem(value: '1hora', child: Text('⏱️  Cada 1 hora')),
+                          items: [
+                            DropdownMenuItem(
+                              value: '5min', 
+                              enabled: toofastProvider.esPremium,
+                              child: Text(toofastProvider.esPremium ? '⏱️  Cada 5 minutos' : '⏱️  Cada 5 minutos (Premium 🔒)', style: TextStyle(color: toofastProvider.esPremium ? Colors.white : Colors.grey)),
+                            ),
+                            DropdownMenuItem(
+                              value: '10min', 
+                              enabled: toofastProvider.esPremium,
+                              child: Text(toofastProvider.esPremium ? '⏱️  Cada 10 minutos' : '⏱️  Cada 10 minutos (Premium 🔒)', style: TextStyle(color: toofastProvider.esPremium ? Colors.white : Colors.grey)),
+                            ),
+                            DropdownMenuItem(
+                              value: '15min', 
+                              enabled: toofastProvider.esPremium,
+                              child: Text(toofastProvider.esPremium ? '⏱️  Cada 15 minutos' : '⏱️  Cada 15 minutos (Premium 🔒)', style: TextStyle(color: toofastProvider.esPremium ? Colors.white : Colors.grey)),
+                            ),
+                            DropdownMenuItem(
+                              value: '30min', 
+                              enabled: toofastProvider.esPremium,
+                              child: Text(toofastProvider.esPremium ? '⏱️  Cada 30 minutos' : '⏱️  Cada 30 minutos (Premium 🔒)', style: TextStyle(color: toofastProvider.esPremium ? Colors.white : Colors.grey)),
+                            ),
+                            const DropdownMenuItem(value: '1hora', child: Text('⏱️  Cada 1 hora')),
                           ],
                           onChanged: (String? nuevoValor) {
-                            if (nuevoValor != null) {
+                            if (nuevoValor != null && toofastProvider.esPremium) {
                               if (toofastProvider.isEscaneando) {
                                 toofastProvider.activarEscaneo(
                                     desde: _desdeController.text,
@@ -376,7 +422,8 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
     );
   }
 
-  Widget _buildTextFieldReal({required TextEditingController controller, required String prefix}) {
+
+  Widget _buildTextFieldReal({required TextEditingController controller, required String prefix, bool enabled = true}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -390,8 +437,9 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
           Expanded(
             child: TextField(
               controller: controller,
+              enabled: enabled,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              style: TextStyle(color: enabled ? Colors.white : Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
@@ -404,6 +452,19 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
     );
   }
 
+  Widget _buildFeatureTitle(String title, bool isLocked) {
+    return Row(
+      children: [
+        Text(title, style: const TextStyle(color: Color(0xFF6B7A90), fontSize: 12)),
+        if (isLocked) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.lock, color: Colors.yellow, size: 12),
+        ],
+      ],
+    );
+  }
+
+
   Widget _buildPlaceholder() {
     return Container(
       width: 85,
@@ -412,6 +473,33 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
       child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
     );
   }
+}
+
+void _mostrarPremiumDialog(BuildContext context, String mensaje) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: const Color(0xFF0F1926),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('💎 Función Premium', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      content: Text(mensaje, style: const TextStyle(color: Colors.white70)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cerrar', style: TextStyle(color: Colors.grey)),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B00)),
+          onPressed: () {
+            Navigator.pop(context);
+            final navState = context.findAncestorStateOfType<_MainNavigationScreenState>();
+            navState?.cambiarAPestana(4); // Ir a Perfil
+          },
+          child: const Text('Mejorar ahora', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    ),
+  );
 }
 
 // ====================================================================
@@ -618,128 +706,173 @@ class AlertasOfertasScreen extends StatelessWidget {
         itemBuilder: (context, index) {
           final item = ofertas[index];
           final bool guardado = toofastProvider.esFavorito(item['id']!);
+          final bool isLocked = !toofastProvider.esPremium && index >= 5;
 
-          return InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () async {
-              final String? urlString = item['enlace'];
-              if (urlString != null && urlString.isNotEmpty) {
-                final Uri url = Uri.parse(urlString);
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                }
-              }
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: const Color(0xFF0F1926), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF1E2D42))),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 🖼️ MINIATURA DE LA IMAGEN (Siempre visible para depuración)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: (item['imagen'] != null && item['imagen']!.isNotEmpty)
-                        ? Image.network(
-                            item['imagen']!,
-                            width: 85,
-                            height: 85,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-                          )
-                        : _buildPlaceholder(),
-                    ),
-                  ),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: Text(item['titulo']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                            const SizedBox(width: 10),
-                            Text('\$${item['precio']}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF00FF66))),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(item['detalles']!, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7A90), height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 14),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.access_time, color: Color(0xFFFFD700), size: 13),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${item['tiempo'] ?? ''}',
-                                        style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
-                                      ),
-                                      if (item['visitas'] != null && item['visitas']!.isNotEmpty) ...[
-                                        const SizedBox(width: 8),
-                                        const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF55657E), size: 13),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${item['visitas']}',
-                                          style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
-                                        ),
-                                      ],
-                                      const SizedBox(width: 8),
-                                      const Icon(Icons.open_in_new, color: Color(0xFFFF6B00), size: 12),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.location_on_outlined, color: Color(0xFF3273CD), size: 13),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: Text(
-                                          '${item['ubicacion'] ?? ''}',
-                                          style: const TextStyle(color: Color(0xFF55657E), fontSize: 10, overflow: TextOverflow.ellipsis),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+          return Stack(
+            children: [
+              // --- EL ANUNCIO (BORROSO SI ESTÁ BLOQUEADO) ---
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(sigmaX: isLocked ? 5 : 0, sigmaY: isLocked ? 5 : 0),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: isLocked ? null : () async {
+                      final String? urlString = item['enlace'];
+                      if (urlString != null && urlString.isNotEmpty) {
+                        final Uri url = Uri.parse(urlString);
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                        }
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: const Color(0xFF0F1926), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF1E2D42))),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 🖼️ MINIATURA DE LA IMAGEN
+                          Padding(
+                            padding: const EdgeInsets.only(right: 12.0),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: (item['imagen'] != null && item['imagen']!.isNotEmpty)
+                                ? Image.network(
+                                    item['imagen']!,
+                                    width: 85,
+                                    height: 85,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+                                  )
+                                : _buildPlaceholder(),
                             ),
-                            IconButton(
-                              icon: Icon(
-                                  guardado ? Icons.favorite : Icons.favorite_border,
-                                  color: guardado ? const Color(0xFFFF6B00) : const Color(0xFF55657E),
-                                  size: 20
-                              ),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () {
-                                toofastProvider.toggleFavorito(item);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(guardado ? 'Eliminado de guardados' : 'Guardado en favoritos local'),
-                                    duration: const Duration(seconds: 1),
-                                  ),
-                                );
-                              },
-                            )
-                          ],
-                        )
-                      ],
+                          ),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(child: Text(item['titulo']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                                    const SizedBox(width: 10),
+                                    Text('\$${item['precio']}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF00FF66))),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(item['detalles']!, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7A90), height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 14),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.access_time, color: Color(0xFFFFD700), size: 13),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${item['tiempo'] ?? ''}',
+                                                style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
+                                              ),
+                                              if (item['visitas'] != null && item['visitas']!.isNotEmpty) ...[
+                                                const SizedBox(width: 8),
+                                                const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF55657E), size: 13),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '${item['visitas']}',
+                                                  style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
+                                                ),
+                                              ],
+                                              const SizedBox(width: 8),
+                                              const Icon(Icons.open_in_new, color: Color(0xFFFF6B00), size: 12),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.location_on_outlined, color: Color(0xFF3273CD), size: 13),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text(
+                                                  '${item['ubicacion'] ?? ''}',
+                                                  style: const TextStyle(color: Color(0xFF55657E), fontSize: 10, overflow: TextOverflow.ellipsis),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(
+                                          guardado ? Icons.favorite : Icons.favorite_border,
+                                          color: guardado ? const Color(0xFFFF6B00) : const Color(0xFF55657E),
+                                          size: 20
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: isLocked ? null : () {
+                                        if (!guardado && !toofastProvider.esPremium && toofastProvider.ofertasGuardadas.isNotEmpty) {
+                                          _mostrarPremiumDialog(context, "Los usuarios FREE solo pueden guardar 1 favorito. ¡Actualiza para favoritos ilimitados!");
+                                          return;
+                                        }
+                                        toofastProvider.toggleFavorito(item);
+                                      },
+                                    )
+                                  ],
+                                )
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+
+              // --- CAPA DE BLOQUEO (BOTÓN DESBLOQUEAR) ---
+              if (isLocked)
+                Positioned.fill(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.lock_outline, color: Colors.yellow, size: 24),
+                          const SizedBox(height: 6),
+                          ElevatedButton(
+                            onPressed: () {
+                              // Cambiar a la pestaña de Perfil (índice 4)
+                              final navState = context.findAncestorStateOfType<_MainNavigationScreenState>();
+                              navState?.cambiarAPestana(4);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF6B00),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            ),
+                            child: const Text('Desbloquear con Premium', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           );
         },
       ),

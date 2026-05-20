@@ -17,6 +17,10 @@ class ToofastProvider extends ChangeNotifier {
   GoogleSignInAccount? get usuario => _usuario;
   bool get estaLogueado => _usuario != null;
 
+  // 💎 Estado de Suscripción
+  bool _esPremium = false; 
+  bool get esPremium => _esPremium;
+
   String _categoria = 'vehiculos';
   String get categoria => _categoria;
 
@@ -130,22 +134,32 @@ class ToofastProvider extends ChangeNotifier {
     required String frecuenciaSeleccionada,
   }) async {
     _isEscaneando = true;
-    _precioDesde = desde;
-    _precioHasta = hasta;
-    _categoria = categoria;
-    _palabraClave = palabraClave.trim();
-    _frecuencia = frecuenciaSeleccionada;
 
-    int segundosBase = _convertirFrecuenciaASegundos(frecuenciaSeleccionada);
+    // 🔒 REGLAS FREEMIUM: Forzar valores si no es premium
+    if (!_esPremium) {
+      _precioDesde = '';
+      _precioHasta = '';
+      _palabraClave = '';
+      _frecuencia = '1hora';
+    } else {
+      _precioDesde = desde;
+      _precioHasta = hasta;
+      _palabraClave = palabraClave.trim();
+      _frecuencia = frecuenciaSeleccionada;
+    }
+
+    _categoria = categoria;
+
+    int segundosBase = _convertirFrecuenciaASegundos(_frecuencia);
     _proximaRevisionEnSegundos = segundosBase;
 
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('precioDesde', desde);
-    await prefs.setString('precioHasta', hasta);
-    await prefs.setString('categoria', categoria);
-    await prefs.setString('palabraClave', _palabraClave); // Guardar localmente
+    await prefs.setString('precioDesde', _precioDesde);
+    await prefs.setString('precioHasta', _precioHasta);
+    await prefs.setString('categoria', _categoria);
+    await prefs.setString('palabraClave', _palabraClave);
 
     _idsNotificados.clear();
     _ejecutarScrapingReal();
@@ -443,8 +457,15 @@ class ToofastProvider extends ChangeNotifier {
 
   void toggleFavorito(Map<String, String> oferta) async {
     final existe = _ofertasGuardadas.any((item) => item['id'] == oferta['id']);
-    if (existe) { _ofertasGuardadas.removeWhere((item) => item['id'] == oferta['id']); }
-    else { _ofertasGuardadas.add(oferta); }
+    if (existe) { 
+      _ofertasGuardadas.removeWhere((item) => item['id'] == oferta['id']); 
+    } else { 
+      // 🔒 Límite de 1 favorito para usuarios FREE
+      if (!_esPremium && _ofertasGuardadas.isNotEmpty) {
+        return;
+      }
+      _ofertasGuardadas.add(oferta); 
+    }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('favoritos', jsonEncode(_ofertasGuardadas));

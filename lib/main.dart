@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart'; // 👈 1. Importa el paquete
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'toofast_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-void main() {
-  // 👈 2. Asegura la inicialización de bindings nativos
+void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-
-  // 👈 3. Preserva la pantalla de carga activa
+  await Firebase.initializeApp();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   runApp(
@@ -32,7 +33,6 @@ class _ToofastAppState extends State<ToofastApp> {
   @override
   void initState() {
     super.initState();
-    // 👈 4. Removemos la portada nativa una vez que el primer frame de la app está listo
     FlutterNativeSplash.remove();
   }
 
@@ -52,16 +52,49 @@ class _ToofastAppState extends State<ToofastApp> {
       home: const MainNavigationScreen(),
     );
   }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 85,
-      height: 85,
-      color: const Color(0xFF070E17),
-      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
-    );
-  }
 }
+
+// --- GLOBALS & HELPERS ---
+
+Widget _buildPlaceholder() {
+  return Container(
+    width: 85,
+    height: 85,
+    color: const Color(0xFF070E17),
+    child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
+  );
+}
+
+void _mostrarPremiumDialog(BuildContext context, String mensaje) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: const Color(0xFF0F1926),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('💎 Función Premium', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      content: Text(mensaje, style: const TextStyle(color: Colors.white70)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cerrar', style: TextStyle(color: Colors.grey)),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B00)),
+          onPressed: () {
+            Navigator.pop(context);
+            final navState = context.findAncestorStateOfType<_MainNavigationScreenState>();
+            navState?.cambiarAPestana(4); // Ir a Perfil
+          },
+          child: const Text('Mejorar ahora', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    ),
+  );
+}
+
+// ====================================================================
+// --- NAVIGATION SCREEN ---
+// ====================================================================
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -72,7 +105,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
-  bool _autoNavegacionRealizada = false; // 🚩 Bandera para permitir el regreso manual
+  bool _autoNavegacionRealizada = false;
 
   final List<Widget> _screens = [
     const ConfigracionBusquedaScreen(),
@@ -82,27 +115,28 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const PerfilScreen(),
   ];
 
+  void cambiarAPestana(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final toofastProvider = Provider.of<ToofastProvider>(context);
 
-    // Si se detiene el escaneo, reseteamos la bandera para el próximo inicio
     if (!toofastProvider.isEscaneando && _autoNavegacionRealizada) {
       _autoNavegacionRealizada = false;
     }
 
-    // ⚡ Auto-navegación: Solo ocurre UNA VEZ por sesión de escaneo cuando aparecen los primeros productos
     if (_currentIndex == 1 && 
         toofastProvider.isEscaneando && 
         toofastProvider.ofertasEncontradas.isNotEmpty && 
         !_autoNavegacionRealizada) {
       
-      _autoNavegacionRealizada = true; // Marcamos que ya saltó
-      
+      _autoNavegacionRealizada = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        setState(() {
-          _currentIndex = 2; // Saltar a Alertas (índice 2)
-        });
+        setState(() { _currentIndex = 2; });
       });
     }
 
@@ -116,10 +150,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         onTap: (index) {
           setState(() {
             _currentIndex = index;
-            // Si el usuario toca manualmente una pestaña, permitimos que se quede ahí
-            if (index == 1) {
-               _autoNavegacionRealizada = true; 
-            }
+            if (index == 1) _autoNavegacionRealizada = true;
           });
         },
         type: BottomNavigationBarType.fixed,
@@ -138,17 +169,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
     );
   }
-
-  void cambiarAPestana(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
-  }
 }
 
 // ====================================================================
 // --- PANTALLA 1: CONFIGURACIÓN DE BÚSQUEDA ---
 // ====================================================================
+
 class ConfigracionBusquedaScreen extends StatefulWidget {
   const ConfigracionBusquedaScreen({super.key});
 
@@ -159,7 +185,7 @@ class ConfigracionBusquedaScreen extends StatefulWidget {
 class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen> {
   late TextEditingController _desdeController;
   late TextEditingController _hastaController;
-  late TextEditingController _palabraClaveController; // 🔍 Controlador para la palabra clave
+  late TextEditingController _palabraClaveController;
 
   @override
   void initState() {
@@ -387,7 +413,7 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
                                 desde: _desdeController.text,
                                 hasta: _hastaController.text,
                                 categoria: toofastProvider.categoria,
-                                palabraClave: _palabraClaveController.text, // 👈 Pasamos el texto real ingresado
+                                palabraClave: _palabraClaveController.text,
                                 frecuenciaSeleccionada: toofastProvider.frecuencia
                             );
 
@@ -421,7 +447,6 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
       ),
     );
   }
-
 
   Widget _buildTextFieldReal({required TextEditingController controller, required String prefix, bool enabled = true}) {
     return Container(
@@ -463,48 +488,12 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
       ],
     );
   }
-
-
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 85,
-      height: 85,
-      color: const Color(0xFF070E17),
-      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
-    );
-  }
-}
-
-void _mostrarPremiumDialog(BuildContext context, String mensaje) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: const Color(0xFF0F1926),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('💎 Función Premium', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      content: Text(mensaje, style: const TextStyle(color: Colors.white70)),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cerrar', style: TextStyle(color: Colors.grey)),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B00)),
-          onPressed: () {
-            Navigator.pop(context);
-            final navState = context.findAncestorStateOfType<_MainNavigationScreenState>();
-            navState?.cambiarAPestana(4); // Ir a Perfil
-          },
-          child: const Text('Mejorar ahora', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        ),
-      ],
-    ),
-  );
 }
 
 // ====================================================================
 // --- PANTALLA 2: ESTADO DEL ESCANEO ---
 // ====================================================================
+
 class EstadoEscaneoScreen extends StatefulWidget {
   const EstadoEscaneoScreen({super.key});
 
@@ -615,10 +604,11 @@ class _EstadoEscaneoScreenState extends State<EstadoEscaneoScreen> with SingleTi
                   const Divider(color: Color(0xFF1E2D42), height: 24),
                   _buildDataRow('Rango de precio:', '\$${toofastProvider.precioDesde} - \$${toofastProvider.precioHasta}'),
                   const Divider(color: Color(0xFF1E2D42), height: 24),
-                  // 🔍 Mostrar la palabra clave activa en el resumen
                   _buildDataRow('Filtro de palabra:', toofastProvider.palabraClave.isEmpty ? 'Ninguno' : '"${toofastProvider.palabraClave}"'),
                   const Divider(color: Color(0xFF1E2D42), height: 24),
                   _buildDataRow('Frecuencia:', 'Cada $frecuenciaTexto'),
+                  const Divider(color: Color(0xFF1E2D42), height: 24),
+                  _buildDataRow('Escaneos realizados:', '${toofastProvider.cantidadEscaneos}'),
                   const Divider(color: Color(0xFF1E2D42), height: 24),
                   _buildDataRow('Estado de motor:', toofastProvider.isEscaneando ? 'Corriendo' : 'Detenido'),
                   const Divider(color: Color(0xFF1E2D42), height: 24),
@@ -645,20 +635,12 @@ class _EstadoEscaneoScreenState extends State<EstadoEscaneoScreen> with SingleTi
       ],
     );
   }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 85,
-      height: 85,
-      color: const Color(0xFF070E17),
-      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
-    );
-  }
 }
 
 // ====================================================================
 // --- PANTALLA 3: OPORTUNIDADES ENCONTRADAS ---
 // ====================================================================
+
 class AlertasOfertasScreen extends StatelessWidget {
   const AlertasOfertasScreen({super.key});
 
@@ -710,7 +692,6 @@ class AlertasOfertasScreen extends StatelessWidget {
 
           return Stack(
             children: [
-              // --- EL ANUNCIO (BORROSO SI ESTÁ BLOQUEADO) ---
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 child: ImageFiltered(
@@ -732,7 +713,6 @@ class AlertasOfertasScreen extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // 🖼️ MINIATURA DE LA IMAGEN
                           Padding(
                             padding: const EdgeInsets.only(right: 12.0),
                             child: ClipRRect(
@@ -776,18 +756,12 @@ class AlertasOfertasScreen extends StatelessWidget {
                                             children: [
                                               const Icon(Icons.access_time, color: Color(0xFFFFD700), size: 13),
                                               const SizedBox(width: 4),
-                                              Text(
-                                                '${item['tiempo'] ?? ''}',
-                                                style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
-                                              ),
+                                              Text('${item['tiempo'] ?? ''}', style: const TextStyle(color: Color(0xFF55657E), fontSize: 10)),
                                               if (item['visitas'] != null && item['visitas']!.isNotEmpty) ...[
                                                 const SizedBox(width: 8),
-                                                const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF55657E), size: 13),
+                                                const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF00FF66), size: 13),
                                                 const SizedBox(width: 4),
-                                                Text(
-                                                  '${item['visitas']}',
-                                                  style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
-                                                ),
+                                                Text('${item['visitas']}', style: const TextStyle(color: Color(0xFF55657E), fontSize: 10)),
                                               ],
                                               const SizedBox(width: 8),
                                               const Icon(Icons.open_in_new, color: Color(0xFFFF6B00), size: 12),
@@ -798,12 +772,7 @@ class AlertasOfertasScreen extends StatelessWidget {
                                             children: [
                                               const Icon(Icons.location_on_outlined, color: Color(0xFF3273CD), size: 13),
                                               const SizedBox(width: 4),
-                                              Flexible(
-                                                child: Text(
-                                                  '${item['ubicacion'] ?? ''}',
-                                                  style: const TextStyle(color: Color(0xFF55657E), fontSize: 10, overflow: TextOverflow.ellipsis),
-                                                ),
-                                              ),
+                                              Flexible(child: Text('${item['ubicacion'] ?? ''}', style: const TextStyle(color: Color(0xFF55657E), fontSize: 10, overflow: TextOverflow.ellipsis))),
                                             ],
                                           ),
                                         ],
@@ -837,15 +806,11 @@ class AlertasOfertasScreen extends StatelessWidget {
                 ),
               ),
 
-              // --- CAPA DE BLOQUEO (BOTÓN DESBLOQUEAR) ---
               if (isLocked)
                 Positioned.fill(
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -854,15 +819,12 @@ class AlertasOfertasScreen extends StatelessWidget {
                           const SizedBox(height: 6),
                           ElevatedButton(
                             onPressed: () {
-                              // Cambiar a la pestaña de Perfil (índice 4)
                               final navState = context.findAncestorStateOfType<_MainNavigationScreenState>();
                               navState?.cambiarAPestana(4);
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFFF6B00),
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             ),
                             child: const Text('Desbloquear con Premium', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
@@ -878,20 +840,12 @@ class AlertasOfertasScreen extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 85,
-      height: 85,
-      color: const Color(0xFF070E17),
-      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
-    );
-  }
 }
 
 // ====================================================================
 // --- PANTALLA 4: ANUNCIOS GUARDADOS ---
 // ====================================================================
+
 class GuardadosScreen extends StatelessWidget {
   const GuardadosScreen({super.key});
 
@@ -906,15 +860,35 @@ class GuardadosScreen extends StatelessWidget {
         elevation: 0,
         leading: const Icon(Icons.menu, color: Color(0xFF55657E)),
         title: const Center(child: Text('Anuncios guardados', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
+        actions: [
+          if (favoritos.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep, color: Color(0xFFFF455B)),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: const Color(0xFF0F1926),
+                    title: const Text('Eliminar todo', style: TextStyle(color: Colors.white)),
+                    content: const Text('¿Estás seguro de que quieres borrar todos tus favoritos?', style: TextStyle(color: Colors.white70)),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+                      TextButton(
+                        onPressed: () {
+                          toofastProvider.limpiarTodosFavoritos();
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Eliminar', style: TextStyle(color: Color(0xFFFF455B))),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
       ),
       body: favoritos.isEmpty
-          ? const Center(
-        child: Text(
-          'No tienes anuncios guardados.\nToca el corazón en las ofertas cazadas para retenerlas.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Color(0xFF55657E), fontSize: 14),
-        ),
-      )
+          ? const Center(child: Text('No tienes anuncios guardados.\nToca el corazón en las ofertas cazadas para retenerlas.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF55657E), fontSize: 14)))
           : ListView.builder(
         padding: const EdgeInsets.all(24.0),
         itemCount: favoritos.length,
@@ -929,10 +903,6 @@ class GuardadosScreen extends StatelessWidget {
                 if (await canLaunchUrl(url)) {
                   await launchUrl(url, mode: LaunchMode.externalApplication);
                 }
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Este favorito no cuenta con enlace registrado.")),
-                );
               }
             },
             child: Container(
@@ -942,7 +912,6 @@ class GuardadosScreen extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🖼️ MINIATURA DE LA IMAGEN EN GUARDADOS
                   if (item['imagen'] != null && item['imagen']!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(right: 12.0),
@@ -953,10 +922,7 @@ class GuardadosScreen extends StatelessWidget {
                           width: 70,
                           height: 70,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 70, height: 70, color: const Color(0xFF070E17),
-                            child: const Icon(Icons.image_not_supported, color: Color(0xFF1E2D42)),
-                          ),
+                          errorBuilder: (context, error, stackTrace) => Container(width: 70, height: 70, color: const Color(0xFF070E17), child: const Icon(Icons.image_not_supported, color: Color(0xFF1E2D42))),
                         ),
                       ),
                     ),
@@ -988,18 +954,12 @@ class GuardadosScreen extends StatelessWidget {
                                     children: [
                                       const Icon(Icons.access_time, color: Color(0xFFFFD700), size: 13),
                                       const SizedBox(width: 4),
-                                      Text(
-                                        '${item['tiempo'] ?? ''}',
-                                        style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
-                                      ),
+                                      Text('${item['tiempo'] ?? ''}', style: const TextStyle(color: Color(0xFF55657E), fontSize: 10)),
                                       if (item['visitas'] != null && item['visitas']!.isNotEmpty) ...[
                                         const SizedBox(width: 8),
-                                        const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF55657E), size: 13),
+                                        const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF00FF66), size: 13),
                                         const SizedBox(width: 4),
-                                        Text(
-                                          '${item['visitas']}',
-                                          style: const TextStyle(color: Color(0xFF55657E), fontSize: 10),
-                                        ),
+                                        Text('${item['visitas']}', style: const TextStyle(color: Color(0xFF55657E), fontSize: 10)),
                                       ],
                                       const SizedBox(width: 8),
                                       const Icon(Icons.open_in_new, color: Color(0xFFFF6B00), size: 12),
@@ -1010,12 +970,7 @@ class GuardadosScreen extends StatelessWidget {
                                     children: [
                                       const Icon(Icons.location_on_outlined, color: Color(0xFF3273CD), size: 13),
                                       const SizedBox(width: 4),
-                                      Flexible(
-                                        child: Text(
-                                          '${item['ubicacion'] ?? ''}',
-                                          style: const TextStyle(color: Color(0xFF55657E), fontSize: 10, overflow: TextOverflow.ellipsis),
-                                        ),
-                                      ),
+                                      Flexible(child: Text('${item['ubicacion'] ?? ''}', style: const TextStyle(color: Color(0xFF55657E), fontSize: 10, overflow: TextOverflow.ellipsis))),
                                     ],
                                   ),
                                 ],
@@ -1025,9 +980,7 @@ class GuardadosScreen extends StatelessWidget {
                               icon: const Icon(Icons.delete_outline, color: Color(0xFFFF455B), size: 20),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
-                              onPressed: () {
-                                toofastProvider.toggleFavorito(item);
-                              },
+                              onPressed: () { toofastProvider.toggleFavorito(item); },
                             )
                           ],
                         )
@@ -1042,20 +995,12 @@ class GuardadosScreen extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 85,
-      height: 85,
-      color: const Color(0xFF070E17),
-      child: const Icon(Icons.image_outlined, color: Color(0xFF1E2D42), size: 30),
-    );
-  }
 }
 
 // ====================================================================
 // --- PANTALLA 5: PERFIL ---
 // ====================================================================
+
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
 
@@ -1068,83 +1013,85 @@ class PerfilScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: const Icon(Icons.menu, color: Color(0xFF55657E)),
-        title: const Center(
-          child: Text('Mi Perfil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-        ),
+        title: const Center(child: Text('Mi Perfil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
         actions: const [Icon(Icons.edit_outlined, color: Color(0xFF55657E)), SizedBox(width: 16)],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            // 👤 CABECERA DE PERFIL (Condicional según login)
             Center(
               child: Column(
                 children: [
                   if (toofastProvider.estaLogueado) ...[
                     Stack(
                       children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: const Color(0xFF0F1926),
-                          backgroundImage: NetworkImage(toofastProvider.usuario!.photoUrl ?? ''),
-                          child: toofastProvider.usuario!.photoUrl == null 
-                              ? const Icon(Icons.person, size: 50, color: Colors.white)
-                              : null,
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(color: Color(0xFF00FF66), shape: BoxShape.circle),
-                            child: const Icon(Icons.bolt, size: 16, color: Color(0xFF070E17)),
+                        GestureDetector(
+                          onTap: () => toofastProvider.cambiarFotoPerfil(),
+                          child: CircleAvatar(
+                            radius: 50,
+                            backgroundColor: const Color(0xFF0F1926),
+                            backgroundImage: (toofastProvider.fotoPerfilUrl != null && !toofastProvider.estaCargandoFoto)
+                                ? (toofastProvider.fotoPerfilUrl!.startsWith('data:image') 
+                                    ? MemoryImage(base64Decode(toofastProvider.fotoPerfilUrl!.split(',')[1])) as ImageProvider
+                                    : NetworkImage(toofastProvider.fotoPerfilUrl!))
+                                : null,
+                            child: toofastProvider.estaCargandoFoto 
+                                ? const CircularProgressIndicator(color: Color(0xFF00FF66))
+                                : (toofastProvider.fotoPerfilUrl == null 
+                                    ? Text(toofastProvider.usuario!.displayName?[0].toUpperCase() ?? '?', style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white))
+                                    : null),
                           ),
                         ),
+                        // Ícono de Cámara para editar
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () => toofastProvider.cambiarFotoPerfil(),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(color: Color(0xFF1E2D42), shape: BoxShape.circle),
+                              child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                        // Badge de Premium (Rayo)
+                        if (toofastProvider.esPremium)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(color: Color(0xFF00FF66), shape: BoxShape.circle),
+                              child: const Icon(Icons.bolt, size: 16, color: Color(0xFF070E17)),
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     Text(toofastProvider.usuario!.displayName ?? 'Usuario', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
                     Text(toofastProvider.usuario!.email, style: const TextStyle(fontSize: 13, color: Color(0xFF55657E))),
                   ] else ...[
-                    const CircleAvatar(
-                      radius: 50,
-                      backgroundColor: Color(0xFF0F1926),
-                      child: Icon(Icons.person_outline, size: 50, color: Colors.white24),
-                    ),
+                    const CircleAvatar(radius: 50, backgroundColor: Color(0xFF0F1926), child: Icon(Icons.person_outline, size: 50, color: Colors.white24)),
                     const SizedBox(height: 20),
                     const Text('Inicia sesión para sincronizar', style: TextStyle(fontSize: 16, color: Colors.white70)),
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
                       onPressed: () async {
-                        try {
-                          await toofastProvider.iniciarSesionGoogle();
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error al iniciar sesión: $e')),
-                            );
-                          }
+                        try { await toofastProvider.iniciarSesionGoogle(); } catch (e) {
+                          if (context.mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al iniciar sesión: $e'))); }
                         }
                       },
                       icon: const Icon(Icons.login, color: Colors.white),
                       label: const Text('Entrar con Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F1926),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: const BorderSide(color: Color(0xFF1E2D42)),
-                        ),
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F1926), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFF1E2D42)))),
                     ),
                   ],
                 ],
               ),
             ),
             const SizedBox(height: 30),
-
-            // 📊 ESTADÍSTICAS RÁPIDAS
             Row(
               children: [
                 Expanded(child: _buildStatCard('Favoritos', '${toofastProvider.ofertasGuardadas.length}', Icons.favorite_border)),
@@ -1153,71 +1100,90 @@ class PerfilScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-
-            // 👑 SECCIÓN PREMIUM
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF6B00), Color(0xFFFF9E00)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            InkWell(
+              onTap: () => _mostrarBeneficiosPremium(context, toofastProvider),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: toofastProvider.esPremium 
+                      ? [const Color(0xFF004D2C), const Color(0xFF00331A)]
+                      : [const Color(0xFFFF6B00), const Color(0xFFFF9E00)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (toofastProvider.esPremium ? const Color(0xFF00FF66) : const Color(0xFFFF6B00)).withOpacity(0.3),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFF6B00).withOpacity(0.3),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        toofastProvider.esPremium ? Icons.check_circle_outline : Icons.workspace_premium, 
+                        color: Colors.white, 
+                        size: 30
+                      ),
                     ),
-                    child: const Icon(Icons.workspace_premium, color: Colors.white, size: 30),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Membresía Premium',
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Desbloquea escaneos ilimitados y filtros avanzados',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            toofastProvider.esPremium ? 'Membresía Premium Activa' : 'Membresía Premium',
+                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            toofastProvider.esPremium 
+                                ? 'Tiempo restante: ${toofastProvider.tiempoRestantePremium}'
+                                : 'Desbloquea escaneos ilimitados y filtros avanzados',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 14),
-                ],
+                    const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 14),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 30),
-
-            // ⚙️ SECCIONES DE AJUSTES
             _buildSectionTitle('Preferencias de App'),
-            _buildSettingTile(Icons.notifications_none, 'Notificaciones de radar', 'Sonido y vibración', true),
+            _buildSettingTile(Icons.notifications_none, 'Notificaciones de radar', toofastProvider.notificacionesHabilitadas ? 'Habilitadas' : 'Deshabilitadas', true, value: toofastProvider.notificacionesHabilitadas, onChanged: (v) => toofastProvider.setNotificaciones(v)),
             _buildSettingTile(Icons.history, 'Limpiar historial', 'Borrar búsquedas pasadas', false),
-            
             const SizedBox(height: 24),
             _buildSectionTitle('Cuenta y Seguridad'),
-            _buildSettingTile(Icons.lock_outline, 'Privacidad', 'Gestionar mis datos', false),
+            _buildSettingTile(Icons.lock_outline, 'Privacidad', 'Gestionar mis datos', false, onTap: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const DatosUsuarioScreen())); }),
             _buildSettingTile(Icons.info_outline, 'Acerca de Toofast', 'Versión 1.0.2', false),
+            
+            if (toofastProvider.esAdmin) ...[
+              const SizedBox(height: 24),
+              _buildSectionTitle('Administración'),
+              _buildSettingTile(
+                Icons.admin_panel_settings_outlined, 
+                'Panel de Control', 
+                'Usuarios y actividad en vivo', 
+                false, 
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PanelAdminUsuariosScreen()));
+                }
+              ),
+            ],
 
             const SizedBox(height: 40),
-            
-            // 🚪 BOTÓN DE CERRAR SESIÓN / ELIMINAR DATOS
             if (toofastProvider.estaLogueado)
               SizedBox(
                 width: double.infinity,
@@ -1225,11 +1191,7 @@ class PerfilScreen extends StatelessWidget {
                   onPressed: () => toofastProvider.cerrarSesion(),
                   icon: const Icon(Icons.logout, color: Color(0xFFFF455B), size: 20),
                   label: const Text('Cerrar sesión', style: TextStyle(color: Color(0xFFFF455B), fontWeight: FontWeight.bold)),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: const Color(0xFFFF455B).withOpacity(0.1),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
+                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), backgroundColor: const Color(0xFFFF455B).withOpacity(0.1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 ),
               ),
             const SizedBox(height: 20),
@@ -1239,14 +1201,151 @@ class PerfilScreen extends StatelessWidget {
     );
   }
 
+  void _mostrarBeneficiosPremium(BuildContext context, ToofastProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        decoration: const BoxDecoration(color: Color(0xFF0F1926), borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 24), decoration: BoxDecoration(color: const Color(0xFF1E2D42), borderRadius: BorderRadius.circular(2)))),
+            const Text('Beneficios Premium 💎', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+            const SizedBox(height: 8),
+            const Text('Lleva tu búsqueda de ofertas al siguiente nivel', style: TextStyle(color: Color(0xFF6B7A90), fontSize: 14)),
+            const SizedBox(height: 32),
+            _buildBenefitItem(Icons.bolt, 'Escaneos en tiempo real', 'Sin límites de tiempo entre búsquedas.'),
+            _buildBenefitItem(Icons.search, 'Filtros avanzados', 'Búsqueda por palabras clave y rango de precios.'),
+            _buildBenefitItem(Icons.notifications_active, 'Notificaciones instantáneas', 'Entérate de las ofertas en el momento exacto.'),
+            _buildBenefitItem(Icons.visibility, 'Resultados desbloqueados', 'Accede a los 20 resultados de cada escaneo.'),
+            _buildBenefitItem(Icons.favorite, 'Favoritos ilimitados', 'Guarda todas las ofertas que quieras.'),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  if (!provider.estaLogueado) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, inicia sesión para adquirir la membresía.'), backgroundColor: Color(0xFFFF455B)));
+                    return;
+                  }
+
+                  if (provider.esPremium) {
+                    if (provider.planActual == '6 Meses + 20 Días') {
+                      Navigator.pop(context);
+                      _mostrarPremiumDialog(context, "Usted ha adquirido la membresía máxima. ¡Gracias por tu apoyo!");
+                      return;
+                    }
+                    // Si tiene un plan menor, dejamos que vea los planes para "mejorar"
+                  }
+
+                  Navigator.pop(context);
+                  _mostrarPlanesMembresia(context);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B00), padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 8, shadowColor: const Color(0xFFFF6B00).withOpacity(0.4)),
+                child: Text(provider.esPremium ? 'Mejorar membresía' : 'Obtener membresía', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Center(child: Text('Cancela en cualquier momento', style: TextStyle(color: Color(0xFF404E62), fontSize: 12))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _mostrarPlanesMembresia(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: const BoxDecoration(color: Color(0xFF0F1926), borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 24), decoration: BoxDecoration(color: const Color(0xFF1E2D42), borderRadius: BorderRadius.circular(2)))),
+            const Text('Selecciona tu plan 💎', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+            const SizedBox(height: 24),
+            _buildPlanTile(context, '7 Días', 'Acceso total por una semana', '15 USD'),
+            _buildPlanTile(context, '1 Mes + 10 Días', 'Nuestra opción más popular', '40 USD', isPopular: true),
+            _buildPlanTile(context, '6 Meses + 20 Días', 'Ahorro máximo a largo plazo', '200 USD'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlanTile(BuildContext context, String title, String subtitle, String price, {bool isPopular = false}) {
+    final provider = Provider.of<ToofastProvider>(context, listen: false);
+    final bool esPlanActual = provider.planActual == title;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+          color: const Color(0xFF070E17),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: esPlanActual 
+                  ? const Color(0xFF00FF66) 
+                  : (isPopular ? const Color(0xFFFF6B00) : const Color(0xFF1E2D42)),
+              width: (isPopular || esPlanActual) ? 2 : 1
+          )
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        title: Row(
+          children: [
+            Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            if (isPopular) ...[
+              const SizedBox(width: 8),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: const Color(0xFFFF6B00), borderRadius: BorderRadius.circular(20)), child: const Text('POPULAR', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold))),
+            ],
+            if (esPlanActual) ...[
+              const SizedBox(width: 8),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: const Color(0xFF00FF66), borderRadius: BorderRadius.circular(20)), child: const Text('ACTUAL', style: TextStyle(color: Color(0xFF070E17), fontSize: 8, fontWeight: FontWeight.bold))),
+            ],
+          ],
+        ),
+        subtitle: Text(subtitle, style: const TextStyle(color: Color(0xFF6B7A90), fontSize: 12)),
+        trailing: Text(price, style: const TextStyle(color: Color(0xFF00FF66), fontWeight: FontWeight.w900, fontSize: 16)),
+        onTap: () {
+          Navigator.pop(context);
+          if (esPlanActual) {
+            _mostrarPremiumDialog(context, "Usted ya tiene este plan activo.");
+            return;
+          }
+          provider.activarPlanPremium(title);
+          _mostrarPremiumDialog(context, "¡Felicidades! Has cambiado al plan de $title.");
+        },
+      ),
+    );
+  }
+
+  Widget _buildBenefitItem(IconData icon, String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: const Color(0xFFFF6B00).withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: const Color(0xFFFF6B00), size: 22)),
+          const SizedBox(width: 16),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(color: Color(0xFF6B7A90), fontSize: 13, height: 1.3))])),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatCard(String label, String value, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F1926),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF1E2D42)),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFF0F1926), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF1E2D42))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1260,36 +1359,224 @@ class PerfilScreen extends StatelessWidget {
   }
 
   Widget _buildSectionTitle(String title) {
+    return Padding(padding: const EdgeInsets.only(bottom: 12.0, left: 4), child: Align(alignment: Alignment.centerLeft, child: Text(title.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF404E62), letterSpacing: 1.2))));
+  }
+
+  Widget _buildSettingTile(IconData icon, String title, String subtitle, bool isSwitch, {bool? value, Function(bool)? onChanged, VoidCallback? onTap}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(color: const Color(0xFF0F1926), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF1E2D42))),
+      child: ListTile(
+        leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF070E17), borderRadius: BorderRadius.circular(8)), child: Icon(icon, color: const Color(0xFF55657E), size: 20)),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Color(0xFF55657E), fontSize: 12)),
+        trailing: isSwitch ? Switch(value: value ?? true, onChanged: onChanged, activeColor: const Color(0xFFFF6B00)) : const Icon(Icons.arrow_forward_ios, color: Color(0xFF1E2D42), size: 14),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+// ====================================================================
+// --- NUEVA PANTALLA: DATOS DEL USUARIO ---
+// ====================================================================
+
+class DatosUsuarioScreen extends StatelessWidget {
+  const DatosUsuarioScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<ToofastProvider>(context);
+    final user = provider.usuario;
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('Mis Datos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      ),
+      body: user == null 
+        ? const Center(child: Text('Inicia sesión para ver tus datos'))
+        : Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDataItem('ID de Usuario', user.id),
+                _buildDataItem('Nombre Completo', user.displayName ?? 'No disponible'),
+                _buildDataItem('Correo Electrónico', user.email),
+                _buildDataItem('Estado de Membresía', provider.esPremium ? 'Premium 💎' : 'Gratis (Freemium)'),
+                const Spacer(),
+                const Text(
+                  'Toofast respeta tu privacidad. Estos datos se utilizan para sincronizar tus favoritos y filtros entre dispositivos.',
+                  style: TextStyle(color: Color(0xFF4C6A92), fontSize: 12, height: 1.5),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Widget _buildDataItem(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0, left: 4),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(title.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF404E62), letterSpacing: 1.2)),
+      padding: const EdgeInsets.only(bottom: 24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Color(0xFF6B7A90), fontSize: 12)),
+          const SizedBox(height: 8),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Divider(color: Color(0xFF1E2D42)),
+        ],
+      ),
+    );
+  }
+}
+
+// ====================================================================
+// --- NUEVA PANTALLA: PANEL DE ADMINISTRACIÓN ---
+// ====================================================================
+class PanelAdminUsuariosScreen extends StatelessWidget {
+  const PanelAdminUsuariosScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final toofastProvider = Provider.of<ToofastProvider>(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('Panel de Administración', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: toofastProvider.streamUsuarios,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return const Center(child: Text('Error al cargar usuarios'));
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+          final docs = snapshot.data!.docs;
+
+          return Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: const Color(0xFF0F1926),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildAdminStat('Registrados', '${docs.length}'),
+                    _buildAdminStat('Premium', '${docs.where((d) => (d.data() as Map)['esPremium'] == true).length}'),
+                    _buildAdminStat('En Línea', '${docs.where((d) {
+                      final data = d.data() as Map;
+                      if (data['ultima_conexion'] == null) return false;
+                      final lastSeen = (data['ultima_conexion'] as Timestamp).toDate();
+                      return DateTime.now().difference(lastSeen).inMinutes < 5;
+                    }).length}'),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final bool isPremium = data['esPremium'] ?? false;
+                    final lastSeen = (data['ultima_conexion'] as Timestamp?)?.toDate();
+                    final bool isOnline = lastSeen != null && DateTime.now().difference(lastSeen).inMinutes < 5;
+
+                    return Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F1926),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF1E2D42)),
+                      ),
+                      child: Row(
+                        children: [
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                backgroundImage: (data['foto'] != null && data['foto'].isNotEmpty)
+                                    ? (data['foto'].startsWith('data:image')
+                                        ? MemoryImage(base64Decode(data['foto'].split(',')[1])) as ImageProvider
+                                        : NetworkImage(data['foto']))
+                                    : null,
+                                backgroundColor: Colors.grey[800],
+                                child: (data['foto'] == null || data['foto'].isEmpty)
+                                    ? Text(data['nombre']?[0].toUpperCase() ?? '?', style: const TextStyle(color: Colors.white))
+                                    : null,
+                              ),
+                              if (isOnline)
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00FF66),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: const Color(0xFF0F1926), width: 2),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(data['nombre'] ?? 'Sin nombre', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                Text(data['email'] ?? 'Sin email', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                          if (isPremium)
+                            const Icon(Icons.workspace_premium, color: Color(0xFFFFD700), size: 18),
+                          
+                          // 🎁 Botón Admin para activar membresía
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert, color: Colors.grey),
+                            color: const Color(0xFF0F1926),
+                            onSelected: (plan) async {
+                              final userId = docs[index].id;
+                              await toofastProvider.adminActivarPremium(userId, plan);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Membresía "$plan" activada para ${data['nombre']}')),
+                                );
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(value: '7 Días', child: Text('🎁 Activar 7 Días', style: TextStyle(color: Colors.white))),
+                              const PopupMenuItem(value: '1 Mes + 10 Días', child: Text('💎 Activar 1 Mes', style: TextStyle(color: Colors.white))),
+                              const PopupMenuItem(value: '6 Meses + 20 Días', child: Text('👑 Activar 6 Meses', style: TextStyle(color: Colors.white))),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildSettingTile(IconData icon, String title, String subtitle, bool isSwitch) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F1926),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF1E2D42)),
-      ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: const Color(0xFF070E17), borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, color: const Color(0xFF55657E), size: 20),
-        ),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle, style: const TextStyle(color: Color(0xFF55657E), fontSize: 12)),
-        trailing: isSwitch 
-            ? Switch(value: true, onChanged: (v) {}, activeColor: const Color(0xFFFF6B00))
-            : const Icon(Icons.arrow_forward_ios, color: Color(0xFF1E2D42), size: 14),
-        onTap: () {},
-      ),
+  Widget _buildAdminStat(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFFF6B00))),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+      ],
     );
   }
 }

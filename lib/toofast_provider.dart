@@ -6,6 +6,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class ToofastProvider extends ChangeNotifier {
   bool _isEscaneando = false;
@@ -17,9 +21,41 @@ class ToofastProvider extends ChangeNotifier {
   GoogleSignInAccount? get usuario => _usuario;
   bool get estaLogueado => _usuario != null;
 
+  String? _fotoPerfilUrl;
+  String? get fotoPerfilUrl => _fotoPerfilUrl ?? _usuario?.photoUrl;
+
+  bool _estaCargandoFoto = false;
+  bool get estaCargandoFoto => _estaCargandoFoto;
+
   // 💎 Estado de Suscripción
   bool _esPremium = false; 
   bool get esPremium => _esPremium;
+  DateTime? _vencimientoPremium;
+  DateTime? get vencimientoPremium => _vencimientoPremium;
+  String? _planActual;
+  String? get planActual => _planActual;
+
+  bool get esAdmin => _usuario?.email == 'krvillamil1990@gmail.com';
+
+  int _cantidadEscaneos = 0;
+  int get cantidadEscaneos => _cantidadEscaneos;
+
+  Stream<QuerySnapshot> get streamUsuarios => 
+      FirebaseFirestore.instance.collection('usuarios').snapshots();
+
+  String get tiempoRestantePremium {
+    if (_vencimientoPremium == null) return "Expirado";
+    final diff = _vencimientoPremium!.difference(DateTime.now());
+    if (diff.isNegative) return "Expirado";
+    
+    if (diff.inDays > 0) return "${diff.inDays}d ${diff.inHours % 24}h";
+    if (diff.inHours > 0) return "${diff.inHours}h ${diff.inMinutes % 60}m";
+    return "${diff.inMinutes}m";
+  }
+
+  // 🔔 Preferencias de Notificaciones
+  bool _notificacionesHabilitadas = true;
+  bool get notificacionesHabilitadas => _notificacionesHabilitadas;
 
   String _categoria = 'vehiculos';
   String get categoria => _categoria;
@@ -68,13 +104,103 @@ class ToofastProvider extends ChangeNotifier {
 
   Future<void> _revisarLoginSilencioso() async {
     _usuario = await _googleSignIn.signInSilently();
+    if (_usuario != null) {
+      await _sincronizarUsuarioDesdeFirestore();
+    }
     notifyListeners();
+  }
+
+  Future<void> _sincronizarUsuarioDesdeFirestore() async {
+    if (_usuario == null) return;
+    
+    try {
+      final doc = await FirebaseFirestore.instance.collection('usuarios').doc(_usuario!.id).get();
+      
+      if (doc.exists) {
+        final data = doc.data()!;
+        
+        // 1. Cargar Foto
+        _fotoPerfilUrl = data['foto'];
+        
+        // 2. Cargar Estado Premium desde la nube
+        _esPremium = data['esPremium'] == true;
+        _planActual = data['planActual'];
+        
+        print("📡 Firestore: Usuario es Premium: $_esPremium | Plan: $_planActual");
+
+        String? vencimientoStr = data['vencimientoPremium'];
+        if (vencimientoStr != null && vencimientoStr.isNotEmpty) {
+          _vencimientoPremium = DateTime.parse(vencimientoStr);
+          
+          // Verificar expiración (si no es admin)
+          if (_usuario!.email != 'krvillamil1990@gmail.com' && 
+              _vencimientoPremium!.isBefore(DateTime.now())) {
+            _esPremium = false;
+            print("⏰ Membresía expirada según Firestore");
+          }
+        }
+        
+        // 3. Persistir localmente para velocidad
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('vencimientoPremium', _vencimientoPremium?.toIso8601String() ?? '');
+        await prefs.setString('planActual', _planActual ?? '');
+      }
+
+      // Siempre aplicar lógica de Admin por si acaso
+      if (_usuario!.email == 'krvillamil1990@gmail.com') {
+        await activarPlanPremium('6 Meses + 20 Días');
+      } else if (_usuario!.email == 'valeriajuegos091022@gmail.com' || _usuario!.email == 'wowdiego94@gmail.com') {
+        await activarPlanPremium('7 Días');
+      }
+
+      // Actualizar última conexión sin sobrescribir el estado Premium recién obtenido
+      await _actualizarUsuarioEnFirestore();
+      
+    } catch (e) {
+      print("Error sincronizando desde Firestore: $e");
+    }
+  }
+
+  Future<void> _actualizarUsuarioEnFirestore() async {
+    if (_usuario == null) return;
+    
+    try {
+      await FirebaseFirestore.instance.collection('usuarios').doc(_usuario!.id).set({
+        'id': _usuario!.id,
+        'nombre': _usuario!.displayName,
+        'email': _usuario!.email,
+        'foto': _usuario!.photoUrl,
+        'esPremium': _esPremium,
+        'vencimientoPremium': _vencimientoPremium?.toIso8601String(),
+        'planActual': _planActual,
+        'ultima_conexion': FieldValue.serverTimestamp(),
+        // Usamos set con merge para no sobrescribir fecha_registro si ya existe
+      }, SetOptions(merge: true));
+      
+      // Si es la primera vez (podemos verificarlo o simplemente intentar añadir fecha_registro si falta)
+      // Pero Firestore no tiene "set if not exists" para campos específicos fácilmente con merge
+      // Una opción es usar un servidor timestamp para la creación solo si el documento es nuevo.
+      // Por simplicidad, el merge:true y ultima_conexion es suficiente para rastrear actividad.
+    } catch (e) {
+      print("Error guardando usuario en Firestore: $e");
+    }
   }
 
   Future<void> iniciarSesionGoogle() async {
     try {
       _usuario = await _googleSignIn.signIn();
-      notifyListeners();
+      
+      if (_usuario != null) {
+        // Sincronizamos PRIMERO desde la nube para no sobrescribir con 'false'
+        await _sincronizarUsuarioDesdeFirestore();
+        
+        notifyListeners(); // Actualizamos UI de inmediato
+
+        // Guardamos fecha de registro solo si no existe (Firestore merge maneja esto bien)
+        FirebaseFirestore.instance.collection('usuarios').doc(_usuario!.id).set({
+          'fecha_registro': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
     } catch (error) {
       print("🔴 ERROR DETALLADO DE GOOGLE: $error");
       rethrow;
@@ -83,8 +209,54 @@ class ToofastProvider extends ChangeNotifier {
 
   Future<void> cerrarSesion() async {
     await _googleSignIn.signOut();
+    
+    // 🧹 Resetear todo el estado del usuario
     _usuario = null;
+    _fotoPerfilUrl = null;
+    _esPremium = false;
+    _vencimientoPremium = null;
+    _planActual = null;
+    
+    // 🧹 Limpiar persistencia local
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('vencimientoPremium');
+    await prefs.remove('planActual');
+    // Nota: mantenemos favoritos y filtros si queremos que persistan localmente, 
+    // pero las reglas Freemium se aplicarán al ser _esPremium = false.
+
     notifyListeners();
+  }
+
+  Future<void> cambiarFotoPerfil() async {
+    if (_usuario == null) return;
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 40, maxWidth: 300); // 📸 Más pequeña para Firestore
+
+    if (image != null) {
+      _estaCargandoFoto = true;
+      notifyListeners();
+
+      try {
+        // 1. Convertir imagen a Base64 (Texto)
+        final bytes = await image.readAsBytes();
+        String base64Image = base64Encode(bytes);
+        String dataUrl = "data:image/jpeg;base64,$base64Image";
+
+        // 2. Guardar directamente en Firestore
+        await FirebaseFirestore.instance.collection('usuarios').doc(_usuario!.id).set({
+          'foto': dataUrl,
+        }, SetOptions(merge: true));
+
+        _fotoPerfilUrl = dataUrl;
+        print("✅ Foto guardada en Firestore como Base64");
+      } catch (e) {
+        print("❌ Error al convertir/guardar foto: $e");
+      } finally {
+        _estaCargandoFoto = false;
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> _inicializarNotificaciones() async {
@@ -101,6 +273,20 @@ class ToofastProvider extends ChangeNotifier {
     _precioHasta = prefs.getString('precioHasta') ?? '';
     _categoria = prefs.getString('categoria') ?? 'vehiculos';
     _palabraClave = prefs.getString('palabraClave') ?? ''; // Cargar palabra clave
+    _notificacionesHabilitadas = prefs.getBool('notificacionesHabilitadas') ?? true;
+    _planActual = prefs.getString('planActual');
+    _cantidadEscaneos = prefs.getInt('cantidadEscaneos') ?? 0;
+    
+    final vencimientoStr = prefs.getString('vencimientoPremium');
+    if (vencimientoStr != null) {
+      _vencimientoPremium = DateTime.parse(vencimientoStr);
+      // Verificar si ya expiró
+      if (_vencimientoPremium!.isBefore(DateTime.now()) && _usuario?.email != 'krvillamil1990@gmail.com') {
+        _esPremium = false;
+      } else if (_vencimientoPremium!.isAfter(DateTime.now()) || _usuario?.email == 'krvillamil1990@gmail.com') {
+        _esPremium = true;
+      }
+    }
 
     final String? favoritosJson = prefs.getString('favoritos');
     if (favoritosJson != null) {
@@ -113,6 +299,69 @@ class ToofastProvider extends ChangeNotifier {
   void cambiarCategoria(String nuevaCategoria) {
     _categoria = nuevaCategoria;
     notifyListeners();
+  }
+
+  void setNotificaciones(bool valor) async {
+    _notificacionesHabilitadas = valor;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notificacionesHabilitadas', valor);
+  }
+
+  Future<void> activarPlanPremium(String plan) async {
+    _esPremium = true;
+    _planActual = plan;
+    DateTime ahora = DateTime.now();
+    
+    switch (plan) {
+      case '7 Días':
+        _vencimientoPremium = ahora.add(const Duration(days: 7));
+        break;
+      case '1 Mes + 10 Días':
+        _vencimientoPremium = ahora.add(const Duration(days: 40));
+        break;
+      case '6 Meses + 20 Días':
+        _vencimientoPremium = ahora.add(const Duration(days: 200));
+        break;
+      case 'Admin': // Para tu cuenta especial
+        _vencimientoPremium = ahora.add(const Duration(days: 3650)); // 10 años
+        _planActual = '6 Meses + 20 Días'; // Tratar admin como plan máximo
+        break;
+    }
+
+    notifyListeners();
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('vencimientoPremium', _vencimientoPremium!.toIso8601String());
+    await prefs.setString('planActual', _planActual!);
+    await _actualizarUsuarioEnFirestore();
+  }
+
+  Future<void> adminActivarPremium(String userId, String plan) async {
+    if (!esAdmin) return;
+
+    DateTime ahora = DateTime.now();
+    DateTime vencimiento;
+    
+    switch (plan) {
+      case '7 Días':
+        vencimiento = ahora.add(const Duration(days: 7));
+        break;
+      case '1 Mes + 10 Días':
+        vencimiento = ahora.add(const Duration(days: 40));
+        break;
+      case '6 Meses + 20 Días':
+        vencimiento = ahora.add(const Duration(days: 200));
+        break;
+      default:
+        vencimiento = ahora.add(const Duration(days: 7));
+    }
+
+    await FirebaseFirestore.instance.collection('usuarios').doc(userId).set({
+      'esPremium': true,
+      'planActual': plan,
+      'vencimientoPremium': vencimiento.toIso8601String(),
+    }, SetOptions(merge: true));
   }
 
   int _convertirFrecuenciaASegundos(String valor) {
@@ -150,12 +399,13 @@ class ToofastProvider extends ChangeNotifier {
 
     _categoria = categoria;
 
-    int segundosBase = _convertirFrecuenciaASegundos(_frecuencia);
-    _proximaRevisionEnSegundos = segundosBase;
+    _cantidadEscaneos++;
+    _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
 
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('cantidadEscaneos', _cantidadEscaneos);
     await prefs.setString('precioDesde', _precioDesde);
     await prefs.setString('precioHasta', _precioHasta);
     await prefs.setString('categoria', _categoria);
@@ -170,10 +420,17 @@ class ToofastProvider extends ChangeNotifier {
         _proximaRevisionEnSegundos--;
         notifyListeners();
       } else {
+        _cantidadEscaneos++;
         _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
         _ejecutarScrapingReal();
+        _guardarContadorEscaneos();
       }
     });
+  }
+
+  Future<void> _guardarContadorEscaneos() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('cantidadEscaneos', _cantidadEscaneos);
   }
 
   Future<void> _ejecutarScrapingReal() async {
@@ -441,6 +698,8 @@ class ToofastProvider extends ChangeNotifier {
   }
 
   Future<void> _dispararNotificacion(int cantidad) async {
+    if (!_notificacionesHabilitadas) return;
+
     const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
       'toofast_radar_channel', 'Alertas de Radar',
       channelDescription: 'Notificaciones cuando se encuentran ofertas',
@@ -469,6 +728,13 @@ class ToofastProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('favoritos', jsonEncode(_ofertasGuardadas));
+  }
+
+  void limpiarTodosFavoritos() async {
+    _ofertasGuardadas.clear();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('favoritos');
   }
 
   bool esFavorito(String id) => _ofertasGuardadas.any((item) => item['id'] == id);

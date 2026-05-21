@@ -35,7 +35,8 @@ class ToofastProvider extends ChangeNotifier {
   String? _planActual;
   String? get planActual => _planActual;
 
-  bool get esAdmin => _usuario?.email == 'krvillamil1990@gmail.com';
+  bool _soyAdminEnFirestore = false;
+  bool get esAdmin => _usuario?.email == 'krvillamil1990@gmail.com' || _soyAdminEnFirestore;
 
   int _cantidadEscaneos = 0;
   int get cantidadEscaneos => _cantidadEscaneos;
@@ -96,6 +97,52 @@ class ToofastProvider extends ChangeNotifier {
     'hogar'
   ];
 
+  List<String> _categoriasVisibles = [
+    'vehiculos',
+    'inmobiliaria',
+    'tecnologia',
+    'electrodomesticos',
+    'ropa-y-accesorios',
+    'familia',
+    'general',
+    'hogar'
+  ];
+  List<String> get categoriasVisibles => _categoriasVisibles;
+
+  void toggleVisibilidadCategoria(String slug) async {
+    if (_categoriasVisibles.contains(slug)) {
+      if (_categoriasVisibles.length > 1) {
+        _categoriasVisibles.remove(slug);
+        
+        // 🚨 CRÍTICO: Si quitamos la categoría que está seleccionada actualmente,
+        // debemos cambiarla a una que sí esté visible para evitar el crash del Dropdown.
+        if (_categoria == slug) {
+          _categoria = _categoriasVisibles.first;
+        }
+      }
+    } else {
+      _categoriasVisibles.add(slug);
+    }
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('categoriasVisibles', _categoriasVisibles);
+    await prefs.setString('categoria', _categoria);
+  }
+
+  void toggleTodasCategorias(bool seleccionar) async {
+    if (seleccionar) {
+      _categoriasVisibles = List.from(listaCategorias);
+    } else {
+      // Dejamos al menos una para evitar errores
+      _categoriasVisibles = [listaCategorias.first];
+      _categoria = listaCategorias.first;
+    }
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('categoriasVisibles', _categoriasVisibles);
+    await prefs.setString('categoria', _categoria);
+  }
+
   ToofastProvider() {
     _cargarDatosLocales();
     _inicializarNotificaciones();
@@ -125,6 +172,7 @@ class ToofastProvider extends ChangeNotifier {
         // 2. Cargar Estado Premium desde la nube
         _esPremium = data['esPremium'] == true;
         _planActual = data['planActual'];
+        _soyAdminEnFirestore = data['esAdmin'] == true;
         
         print("📡 Firestore: Usuario es Premium: $_esPremium | Plan: $_planActual");
 
@@ -173,6 +221,7 @@ class ToofastProvider extends ChangeNotifier {
         'esPremium': _esPremium,
         'vencimientoPremium': _vencimientoPremium?.toIso8601String(),
         'planActual': _planActual,
+        'esAdmin': esAdmin, // Mantiene el estatus de admin si lo tiene
         'ultima_conexion': FieldValue.serverTimestamp(),
         // Usamos set con merge para no sobrescribir fecha_registro si ya existe
       }, SetOptions(merge: true));
@@ -277,6 +326,16 @@ class ToofastProvider extends ChangeNotifier {
     _planActual = prefs.getString('planActual');
     _cantidadEscaneos = prefs.getInt('cantidadEscaneos') ?? 0;
     
+    final savedCats = prefs.getStringList('categoriasVisibles');
+    if (savedCats != null) {
+      _categoriasVisibles = savedCats;
+    }
+
+    // 🚨 SEGURIDAD: Asegurar que la categoría seleccionada esté en las visibles
+    if (!_categoriasVisibles.contains(_categoria)) {
+      _categoria = _categoriasVisibles.first;
+    }
+    
     final vencimientoStr = prefs.getString('vencimientoPremium');
     if (vencimientoStr != null) {
       _vencimientoPremium = DateTime.parse(vencimientoStr);
@@ -361,6 +420,22 @@ class ToofastProvider extends ChangeNotifier {
       'esPremium': true,
       'planActual': plan,
       'vencimientoPremium': vencimiento.toIso8601String(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> adminDesactivarPremium(String userId) async {
+    if (!esAdmin) return;
+    await FirebaseFirestore.instance.collection('usuarios').doc(userId).set({
+      'esPremium': false,
+      'planActual': null,
+      'vencimientoPremium': null,
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> adminAsignarAdmin(String userId, bool setAdmin) async {
+    if (!esAdmin) return;
+    await FirebaseFirestore.instance.collection('usuarios').doc(userId).set({
+      'esAdmin': setAdmin,
     }, SetOptions(merge: true));
   }
 

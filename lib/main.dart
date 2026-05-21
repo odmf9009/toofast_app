@@ -92,6 +92,94 @@ void _mostrarPremiumDialog(BuildContext context, String mensaje) {
   );
 }
 
+Widget _buildDrawer(BuildContext context, ToofastProvider provider) {
+  return Drawer(
+    backgroundColor: const Color(0xFF0F1926),
+    child: SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Text(
+              'Filtro de Categorías',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24.0),
+            child: Text(
+              'Selecciona las categorías que deseas ver en el Home para escanear.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7A90)),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    leading: const Icon(Icons.category_outlined, color: Color(0xFFFF6B00)),
+                    title: const Text(
+                      'Categorías',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    iconColor: const Color(0xFFFF6B00),
+                    collapsedIconColor: Colors.white70,
+                    childrenPadding: const EdgeInsets.only(left: 12),
+                    initiallyExpanded: false,
+                    children: [
+                      // Opción Seleccionar Todo
+                      CheckboxListTile(
+                        title: const Text('✨  Seleccionar Todo (All)', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        value: provider.categoriasVisibles.length == provider.listaCategorias.length,
+                        activeColor: const Color(0xFFFF6B00),
+                        checkColor: Colors.white,
+                        onChanged: (bool? value) {
+                          provider.toggleTodasCategorias(value ?? true);
+                        },
+                        controlAffinity: ListTileControlAffinity.trailing,
+                      ),
+                      const Divider(color: Color(0xFF1E2D42), indent: 16, endIndent: 16),
+                      
+                      ...provider.listaCategorias.map((slug) {
+                        final bool estaVisible = provider.categoriasVisibles.contains(slug);
+                        final Map<String, String> nombresEsteticos = {
+                          'vehiculos': '🚗  Vehículos y Carros',
+                          'inmobiliaria': '🏠  Casas y Alquileres',
+                          'tecnologia': '💻  Tecnología y PC',
+                          'electrodomesticos': '📺  Electrodomésticos',
+                          'ropa-y-accesorios': '👟  Ropa y Accesorios',
+                          'familia': '🍼  Artículos para Familia',
+                          'general': '📦  Compra-Venta General',
+                          'hogar': '🛋️  Muebles y Hogar',
+                        };
+
+                        return CheckboxListTile(
+                          title: Text(nombresEsteticos[slug] ?? slug, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                          value: estaVisible,
+                          activeColor: const Color(0xFFFF6B00),
+                          checkColor: Colors.white,
+                          onChanged: (bool? value) {
+                            provider.toggleVisibilidadCategoria(slug);
+                          },
+                          controlAffinity: ListTileControlAffinity.trailing,
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 // ====================================================================
 // --- NAVIGATION SCREEN ---
 // ====================================================================
@@ -220,6 +308,17 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
     final toofastProvider = Provider.of<ToofastProvider>(context);
 
     return Scaffold(
+      drawer: _buildDrawer(context, toofastProvider),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Color(0xFF55657E)),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -269,7 +368,7 @@ class _ConfigracionBusquedaScreenState extends State<ConfigracionBusquedaScreen>
                           isExpanded: true,
                           dropdownColor: const Color(0xFF0F1926),
                           style: const TextStyle(color: Colors.white, fontSize: 14),
-                          items: toofastProvider.listaCategorias.map((String slugReal) {
+                          items: toofastProvider.categoriasVisibles.map((String slugReal) {
                             return DropdownMenuItem<String>(
                               value: slugReal,
                               child: Text(_nombresEsteticosCategorias[slugReal] ?? slugReal),
@@ -539,17 +638,18 @@ class _EstadoEscaneoScreenState extends State<EstadoEscaneoScreen> with SingleTi
         .replaceAll('1hora', '1 hora');
 
     return Scaffold(
+      drawer: _buildDrawer(context, toofastProvider),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const Icon(Icons.menu, color: Color(0xFF55657E)),
         title: const Center(child: Text('Estado del escaneo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
         actions: const [Icon(Icons.more_vert, color: Color(0xFF55657E)), SizedBox(width: 16)],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
             const SizedBox(height: 20),
             Center(
               child: Stack(
@@ -623,6 +723,7 @@ class _EstadoEscaneoScreenState extends State<EstadoEscaneoScreen> with SingleTi
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -650,10 +751,10 @@ class AlertasOfertasScreen extends StatelessWidget {
     final ofertas = toofastProvider.ofertasEncontradas;
 
     return Scaffold(
+      drawer: _buildDrawer(context, toofastProvider),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const Icon(Icons.menu, color: Color(0xFF55657E)),
         title: const Center(child: Text('Oportunidades encontradas', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
         actions: [
           Container(
@@ -670,34 +771,35 @@ class AlertasOfertasScreen extends StatelessWidget {
           )
         ],
       ),
-      body: !toofastProvider.isEscaneando
-          ? const Center(child: Text('El radar está apagado.\nActívalo para empezar a cazar ofertas.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF55657E), fontSize: 14)))
-          : ofertas.isEmpty
-          ? Center(
-        child: Text(
-          toofastProvider.palabraClave.isEmpty
-              ? 'Escaneando Revolico...\nNo hay ofertas en este rango todavía.'
-              : 'Escaneando Revolico...\nNo hay anuncios que coincidan con "${toofastProvider.palabraClave}".',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Color(0xFF55657E), fontSize: 14),
-        ),
-      )
-          : ListView.builder(
-        padding: const EdgeInsets.all(24.0),
-        itemCount: ofertas.length,
-        itemBuilder: (context, index) {
-          final item = ofertas[index];
-          final bool guardado = toofastProvider.esFavorito(item['id']!);
-          final bool isLocked = !toofastProvider.esPremium && index >= 5;
+      body: SafeArea(
+        child: !toofastProvider.isEscaneando
+            ? const Center(child: Text('El radar está apagado.\nActívalo para empezar a cazar ofertas.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF55657E), fontSize: 14)))
+            : ofertas.isEmpty
+            ? Center(
+          child: Text(
+            toofastProvider.palabraClave.isEmpty
+                ? 'Escaneando Revolico...\nNo hay ofertas en este rango todavía.'
+                : 'Escaneando Revolico...\nNo hay anuncios que coincidan con "${toofastProvider.palabraClave}".',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF55657E), fontSize: 14),
+          ),
+        )
+            : ListView.builder(
+          padding: const EdgeInsets.all(24.0),
+          itemCount: ofertas.length,
+          itemBuilder: (context, index) {
+            final item = ofertas[index];
+            final bool guardado = toofastProvider.esFavorito(item['id']!);
+            final bool isLocked = !toofastProvider.esPremium && index >= 5;
 
-          return Stack(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                child: ImageFiltered(
-                  imageFilter: ui.ImageFilter.blur(sigmaX: isLocked ? 5 : 0, sigmaY: isLocked ? 5 : 0),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
+            return Stack(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(sigmaX: isLocked ? 5 : 0, sigmaY: isLocked ? 5 : 0),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
                     onTap: isLocked ? null : () async {
                       final String? urlString = item['enlace'];
                       if (urlString != null && urlString.isNotEmpty) {
@@ -838,6 +940,7 @@ class AlertasOfertasScreen extends StatelessWidget {
           );
         },
       ),
+      ),
     );
   }
 }
@@ -855,10 +958,10 @@ class GuardadosScreen extends StatelessWidget {
     final favoritos = toofastProvider.ofertasGuardadas;
 
     return Scaffold(
+      drawer: _buildDrawer(context, toofastProvider),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const Icon(Icons.menu, color: Color(0xFF55657E)),
         title: const Center(child: Text('Anuncios guardados', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
         actions: [
           if (favoritos.isNotEmpty)
@@ -887,15 +990,16 @@ class GuardadosScreen extends StatelessWidget {
             ),
         ],
       ),
-      body: favoritos.isEmpty
-          ? const Center(child: Text('No tienes anuncios guardados.\nToca el corazón en las ofertas cazadas para retenerlas.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF55657E), fontSize: 14)))
-          : ListView.builder(
-        padding: const EdgeInsets.all(24.0),
-        itemCount: favoritos.length,
-        itemBuilder: (context, index) {
-          final item = favoritos[index];
-          return InkWell(
-            borderRadius: BorderRadius.circular(12),
+      body: SafeArea(
+        child: favoritos.isEmpty
+            ? const Center(child: Text('No tienes anuncios guardados.\nToca el corazón en las ofertas cazadas para retenerlas.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF55657E), fontSize: 14)))
+            : ListView.builder(
+          padding: const EdgeInsets.all(24.0),
+          itemCount: favoritos.length,
+          itemBuilder: (context, index) {
+            final item = favoritos[index];
+            return InkWell(
+              borderRadius: BorderRadius.circular(12),
             onTap: () async {
               final String? urlString = item['enlace'];
               if (urlString != null && urlString.isNotEmpty) {
@@ -993,6 +1097,7 @@ class GuardadosScreen extends StatelessWidget {
           );
         },
       ),
+      ),
     );
   }
 }
@@ -1009,17 +1114,18 @@ class PerfilScreen extends StatelessWidget {
     final toofastProvider = Provider.of<ToofastProvider>(context);
 
     return Scaffold(
+      drawer: _buildDrawer(context, toofastProvider),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const Icon(Icons.menu, color: Color(0xFF55657E)),
         title: const Center(child: Text('Mi Perfil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
         actions: const [Icon(Icons.edit_outlined, color: Color(0xFF55657E)), SizedBox(width: 16)],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
             Center(
               child: Column(
                 children: [
@@ -1169,6 +1275,18 @@ class PerfilScreen extends StatelessWidget {
             _buildSettingTile(Icons.lock_outline, 'Privacidad', 'Gestionar mis datos', false, onTap: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const DatosUsuarioScreen())); }),
             _buildSettingTile(Icons.info_outline, 'Acerca de Toofast', 'Versión 1.0.2', false),
             
+            const SizedBox(height: 24),
+            _buildSectionTitle('Personalización'),
+            _buildSettingTile(
+              Icons.category_outlined, 
+              'Filtrar Categorías', 
+              'Elegir qué mostrar en el Home', 
+              false, 
+              onTap: () {
+                Scaffold.of(context).openDrawer();
+              }
+            ),
+
             if (toofastProvider.esAdmin) ...[
               const SizedBox(height: 24),
               _buildSectionTitle('Administración'),
@@ -1197,6 +1315,7 @@ class PerfilScreen extends StatelessWidget {
             const SizedBox(height: 20),
           ],
         ),
+      ),
       ),
     );
   }
@@ -1390,31 +1509,34 @@ class DatosUsuarioScreen extends StatelessWidget {
     final user = provider.usuario;
 
     return Scaffold(
+      drawer: _buildDrawer(context, provider),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text('Mis Datos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ),
-      body: user == null 
-        ? const Center(child: Text('Inicia sesión para ver tus datos'))
-        : Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildDataItem('ID de Usuario', user.id),
-                _buildDataItem('Nombre Completo', user.displayName ?? 'No disponible'),
-                _buildDataItem('Correo Electrónico', user.email),
-                _buildDataItem('Estado de Membresía', provider.esPremium ? 'Premium 💎' : 'Gratis (Freemium)'),
-                const Spacer(),
-                const Text(
-                  'Toofast respeta tu privacidad. Estos datos se utilizan para sincronizar tus favoritos y filtros entre dispositivos.',
-                  style: TextStyle(color: Color(0xFF4C6A92), fontSize: 12, height: 1.5),
-                ),
-                const SizedBox(height: 20),
-              ],
+      body: SafeArea(
+        child: user == null 
+          ? const Center(child: Text('Inicia sesión para ver tus datos'))
+          : Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDataItem('ID de Usuario', user.id),
+                  _buildDataItem('Nombre Completo', user.displayName ?? 'No disponible'),
+                  _buildDataItem('Correo Electrónico', user.email),
+                  _buildDataItem('Estado de Membresía', provider.esPremium ? 'Premium 💎' : 'Gratis (Freemium)'),
+                  const Spacer(),
+                  const Text(
+                    'Toofast respeta tu privacidad. Estos datos se utilizan para sincronizar tus favoritos y filtros entre dispositivos.',
+                    style: TextStyle(color: Color(0xFF4C6A92), fontSize: 12, height: 1.5),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
-          ),
+      ),
     );
   }
 
@@ -1445,129 +1567,196 @@ class PanelAdminUsuariosScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final toofastProvider = Provider.of<ToofastProvider>(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Panel de Administración', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          title: const Text('Panel de Administración', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          bottom: const TabBar(
+            indicatorColor: Color(0xFFFF6B00),
+            labelColor: Color(0xFFFF6B00),
+            unselectedLabelColor: Colors.grey,
+            tabs: [
+              Tab(text: 'Registrados', icon: Icon(Icons.people_outline)),
+              Tab(text: 'En Línea', icon: Icon(Icons.bolt)),
+            ],
+          ),
+        ),
+        body: SafeArea(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: toofastProvider.streamUsuarios,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return const Center(child: Text('Error al cargar usuarios'));
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+              final allDocs = snapshot.data!.docs;
+              final onlineDocs = allDocs.where((d) {
+                final data = d.data() as Map;
+                if (data['ultima_conexion'] == null) return false;
+                final lastSeen = (data['ultima_conexion'] as Timestamp).toDate();
+                return DateTime.now().difference(lastSeen).inMinutes < 5;
+              }).toList();
+
+              return Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    color: const Color(0xFF0F1926),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildAdminStat('Registrados', '${allDocs.length}'),
+                        _buildAdminStat('Premium', '${allDocs.where((d) => (d.data() as Map)['esPremium'] == true).length}'),
+                        _buildAdminStat('En Línea', '${onlineDocs.length}'),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        // Pestaña 1: Todos los registrados
+                        _buildUserList(context, allDocs, toofastProvider),
+                        // Pestaña 2: Solo los que están en línea
+                        _buildUserList(context, onlineDocs, toofastProvider),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: toofastProvider.streamUsuarios,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return const Center(child: Text('Error al cargar usuarios'));
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+    );
+  }
 
-          final docs = snapshot.data!.docs;
+  Widget _buildUserList(BuildContext context, List<QueryDocumentSnapshot> docs, ToofastProvider toofastProvider) {
+    if (docs.isEmpty) {
+      return const Center(child: Text('No hay usuarios en esta sección', style: TextStyle(color: Colors.grey)));
+    }
+    
+    return ListView.builder(
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final data = docs[index].data() as Map<String, dynamic>;
+        final bool isPremium = data['esPremium'] ?? false;
+        final lastSeen = (data['ultima_conexion'] as Timestamp?)?.toDate();
+        final bool isOnline = lastSeen != null && DateTime.now().difference(lastSeen).inMinutes < 5;
 
-          return Column(
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F1926),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF1E2D42)),
+          ),
+          child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                color: const Color(0xFF0F1926),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+              Stack(
+                children: [
+                  CircleAvatar(
+                    backgroundImage: (data['foto'] != null && data['foto'].isNotEmpty)
+                        ? (data['foto'].startsWith('data:image')
+                            ? MemoryImage(base64Decode(data['foto'].split(',')[1])) as ImageProvider
+                            : NetworkImage(data['foto']))
+                        : null,
+                    backgroundColor: Colors.grey[800],
+                    child: (data['foto'] == null || data['foto'].isEmpty)
+                        ? Text(data['nombre']?[0].toUpperCase() ?? '?', style: const TextStyle(color: Colors.white))
+                        : null,
+                  ),
+                  if (isOnline)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00FF66),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF0F1926), width: 2),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildAdminStat('Registrados', '${docs.length}'),
-                    _buildAdminStat('Premium', '${docs.where((d) => (d.data() as Map)['esPremium'] == true).length}'),
-                    _buildAdminStat('En Línea', '${docs.where((d) {
-                      final data = d.data() as Map;
-                      if (data['ultima_conexion'] == null) return false;
-                      final lastSeen = (data['ultima_conexion'] as Timestamp).toDate();
-                      return DateTime.now().difference(lastSeen).inMinutes < 5;
-                    }).length}'),
+                    Row(
+                      children: [
+                        Text(data['nombre'] ?? 'Sin nombre', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        if (data['esAdmin'] == true) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.admin_panel_settings, color: Colors.blue, size: 14),
+                        ],
+                      ],
+                    ),
+                    Text(data['email'] ?? 'Sin email', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ],
                 ),
               ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    final bool isPremium = data['esPremium'] ?? false;
-                    final lastSeen = (data['ultima_conexion'] as Timestamp?)?.toDate();
-                    final bool isOnline = lastSeen != null && DateTime.now().difference(lastSeen).inMinutes < 5;
-
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F1926),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF1E2D42)),
-                      ),
-                      child: Row(
-                        children: [
-                          Stack(
-                            children: [
-                              CircleAvatar(
-                                backgroundImage: (data['foto'] != null && data['foto'].isNotEmpty)
-                                    ? (data['foto'].startsWith('data:image')
-                                        ? MemoryImage(base64Decode(data['foto'].split(',')[1])) as ImageProvider
-                                        : NetworkImage(data['foto']))
-                                    : null,
-                                backgroundColor: Colors.grey[800],
-                                child: (data['foto'] == null || data['foto'].isEmpty)
-                                    ? Text(data['nombre']?[0].toUpperCase() ?? '?', style: const TextStyle(color: Colors.white))
-                                    : null,
-                              ),
-                              if (isOnline)
-                                Positioned(
-                                  right: 0,
-                                  bottom: 0,
-                                  child: Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF00FF66),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: const Color(0xFF0F1926), width: 2),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(data['nombre'] ?? 'Sin nombre', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                                Text(data['email'] ?? 'Sin email', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              ],
-                            ),
-                          ),
-                          if (isPremium)
-                            const Icon(Icons.workspace_premium, color: Color(0xFFFFD700), size: 18),
-                          
-                          // 🎁 Botón Admin para activar membresía
-                          PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert, color: Colors.grey),
-                            color: const Color(0xFF0F1926),
-                            onSelected: (plan) async {
-                              final userId = docs[index].id;
-                              await toofastProvider.adminActivarPremium(userId, plan);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Membresía "$plan" activada para ${data['nombre']}')),
-                                );
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              const PopupMenuItem(value: '7 Días', child: Text('🎁 Activar 7 Días', style: TextStyle(color: Colors.white))),
-                              const PopupMenuItem(value: '1 Mes + 10 Días', child: Text('💎 Activar 1 Mes', style: TextStyle(color: Colors.white))),
-                              const PopupMenuItem(value: '6 Meses + 20 Días', child: Text('👑 Activar 6 Meses', style: TextStyle(color: Colors.white))),
-                            ],
-                          ),
-                        ],
-                      ),
+              if (isPremium)
+                const Icon(Icons.workspace_premium, color: Color(0xFFFFD700), size: 18),
+              
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.grey),
+                color: const Color(0xFF0F1926),
+                onSelected: (action) async {
+                  final userId = docs[index].id;
+                  if (action == 'DEACTIVATE') {
+                    await toofastProvider.adminDesactivarPremium(userId);
+                  } else if (action == 'TOGGLE_ADMIN') {
+                    await toofastProvider.adminAsignarAdmin(userId, !(data['esAdmin'] == true));
+                  } else {
+                    await toofastProvider.adminActivarPremium(userId, action);
+                  }
+                  
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Acción realizada para ${data['nombre']}')),
                     );
-                  },
-                ),
+                  }
+                },
+                itemBuilder: (context) {
+                  final currentPlan = data['planActual'];
+                  final bool userIsAdmin = data['esAdmin'] == true;
+                  
+                  return [
+                    PopupMenuItem(
+                      value: '7 Días', 
+                      child: Text('🎁 Activar 7 Días', style: TextStyle(color: (isPremium && currentPlan == '7 Días') ? const Color(0xFF00FF66) : Colors.white))
+                    ),
+                    PopupMenuItem(
+                      value: '1 Mes + 10 Días', 
+                      child: Text('💎 Activar 1 Mes', style: TextStyle(color: (isPremium && currentPlan == '1 Mes + 10 Días') ? const Color(0xFF00FF66) : Colors.white))
+                    ),
+                    PopupMenuItem(
+                      value: '6 Meses + 20 Días', 
+                      child: Text('👑 Activar 6 Meses', style: TextStyle(color: (isPremium && currentPlan == '6 Meses + 20 Días') ? const Color(0xFF00FF66) : Colors.white))
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'DEACTIVATE', 
+                      child: Text('🚫 Desactivar Premium', style: TextStyle(color: Color(0xFFFF455B)))
+                    ),
+                    PopupMenuItem(
+                      value: 'TOGGLE_ADMIN', 
+                      child: Text(userIsAdmin ? '👤 Quitar Admin' : '🔑 Hacer Admin', style: TextStyle(color: userIsAdmin ? Colors.orange : Colors.blue))
+                    ),
+                  ];
+                },
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 

@@ -5,6 +5,7 @@ import '../themes/app_colors.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/feature_title.dart';
+import '../utils/app_utils.dart';
 import 'main_navigation_screen.dart';
 
 class ConfiguracionBusquedaScreen extends StatefulWidget {

@@ -5,9 +5,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'providers/toofast_provider.dart';
 import 'screens/main_navigation_screen.dart';
 import 'themes/app_theme.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  
+  // Inicialización de Stripe
+  Stripe.publishableKey = "pk_live_51TZMGeHsB3vaNXFwbCYvKHxysyMzRgoLWgqg0N0XYe85QdxK3NHzImbethJ0jhFPa5xpGnLMF1LUl09T8nzwJfxl001G0CKNHo"; // REEMPLAZAR
+
   await Firebase.initializeApp();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../providers/toofast_provider.dart';
 import '../themes/app_colors.dart';
+import '../utils/app_utils.dart';
 
 class AppDrawer extends StatelessWidget {
   final ToofastProvider provider;
@@ -54,7 +55,9 @@ class AppDrawer extends StatelessWidget {
                           activeColor: AppColors.primary,
                           checkColor: Colors.white,
                           onChanged: (bool? value) {
-                            provider.toggleTodasCategorias(value ?? true);
+                            // Acción: Si el usuario toca "All", forzamos el estado correspondiente.
+                            // Esto funciona tanto para FREE como para Premium.
+                            provider.toggleTodasCategorias(value == true);
                           },
                           controlAffinity: ListTileControlAffinity.trailing,
                         ),
@@ -80,7 +83,29 @@ class AppDrawer extends StatelessWidget {
                             activeColor: AppColors.primary,
                             checkColor: Colors.white,
                             onChanged: (bool? value) {
-                              provider.toggleVisibilidadCategoria(slug);
+                              if (!provider.esPremium) {
+                                final bool estaEnEstadoAll = provider.categoriasVisibles.length == provider.listaCategorias.length;
+                                
+                                if (estaEnEstadoAll) {
+                                  // Caso 1: Estamos en "Ver Todo" y tocamos una categoría específica.
+                                  // Acción: Dejamos SOLO esa categoría activa.
+                                  provider.seleccionarSoloUnaCategoria(slug);
+                                } else {
+                                  // Estamos en estado "Ver Una".
+                                  if (estaVisible) {
+                                    // Caso 2: Intentamos desmarcar la única categoría que tenemos.
+                                    // Acción: No hacemos nada (siempre debe haber al menos una).
+                                  } else {
+                                    // Caso 3: Intentamos marcar una segunda categoría.
+                                    // Acción: Bloqueado (Función Premium).
+                                    AppUtils.mostrarPremiumDialog(context, 
+                                      "Para filtrar por múltiples categorías al mismo tiempo necesitas una membresía Premium. ¡Actualiza para desbloquear todo el potencial!");
+                                  }
+                                }
+                              } else {
+                                // Usuario Premium: Libertad total.
+                                provider.toggleVisibilidadCategoria(slug);
+                              }
                             },
                             controlAffinity: ListTileControlAffinity.trailing,
                           );

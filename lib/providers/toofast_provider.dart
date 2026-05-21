@@ -129,6 +129,15 @@ class ToofastProvider extends ChangeNotifier {
     await prefs.setString('categoria', _categoria);
   }
 
+  void seleccionarSoloUnaCategoria(String slug) async {
+    _categoriasVisibles = [slug];
+    _categoria = slug;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('categoriasVisibles', _categoriasVisibles);
+    await prefs.setString('categoria', _categoria);
+  }
+
   void toggleTodasCategorias(bool seleccionar) async {
     if (seleccionar) {
       _categoriasVisibles = List.from(listaCategorias);
@@ -185,6 +194,8 @@ class ToofastProvider extends ChangeNotifier {
               _vencimientoPremium!.isBefore(DateTime.now())) {
             _esPremium = false;
             print("⏰ Membresía expirada según Firestore");
+          } else {
+            _verificarExpiracionProxima();
           }
         }
         
@@ -335,6 +346,8 @@ class ToofastProvider extends ChangeNotifier {
     if (!_categoriasVisibles.contains(_categoria)) {
       _categoria = _categoriasVisibles.first;
     }
+
+    _verificarExpiracionProxima();
     
     final vencimientoStr = prefs.getString('vencimientoPremium');
     if (vencimientoStr != null) {
@@ -353,6 +366,45 @@ class ToofastProvider extends ChangeNotifier {
       _ofertasGuardadas = decoded.map((item) => Map<String, String>.from(item)).toList();
     }
     notifyListeners();
+  }
+
+  void _verificarExpiracionProxima() async {
+    if (!_esPremium || _vencimientoPremium == null) return;
+
+    final diff = _vencimientoPremium!.difference(DateTime.now());
+    
+    // Si quedan menos de 24 horas y más de 0
+    if (diff.inHours >= 0 && diff.inHours <= 24) {
+      final prefs = await SharedPreferences.getInstance();
+      final lastWarning = prefs.getString('ultimoAvisoExpiracion');
+      final hoy = DateTime.now().toIso8601String().split('T')[0];
+
+      // Solo avisar una vez al día para no molestar
+      if (lastWarning != hoy) {
+        _notificarExpiracion(diff.inHours);
+        await prefs.setString('ultimoAvisoExpiracion', hoy);
+      }
+    }
+  }
+
+  Future<void> _notificarExpiracion(int horas) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      'toofast_expiration_channel', 'Aviso de Expiración',
+      channelDescription: 'Notificaciones sobre el estado de tu membresía',
+      importance: Importance.max, priority: Priority.high,
+    );
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidPlatformChannelSpecifics);
+
+    String msg = horas > 0 
+      ? 'Tu membresía Premium expira en aproximadamente $horas horas. ¡Renuévala para no perder tus beneficios!'
+      : 'Tu membresía Premium está a punto de expirar. ¡Renuévala ahora!';
+
+    await _notificationsPlugin.show(
+      999, // ID único para avisos de expiración
+      '💎 Membresía por vencer', 
+      msg, 
+      platformChannelSpecifics
+    );
   }
 
   void cambiarCategoria(String nuevaCategoria) {

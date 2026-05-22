@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class ToofastProvider extends ChangeNotifier {
   bool _isEscaneando = false;
@@ -34,6 +35,17 @@ class ToofastProvider extends ChangeNotifier {
   DateTime? get vencimientoPremium => _vencimientoPremium;
   String? _planActual;
   String? get planActual => _planActual;
+  
+  bool _pruebaUsada = false;
+  bool get pruebaUsada => _pruebaUsada;
+
+  int _totalUsuarios = 0;
+  int get totalUsuarios => _totalUsuarios;
+  int _totalEscaneosGlobales = 0;
+  int get totalEscaneosGlobales => _totalEscaneosGlobales;
+  
+  List<String> _bannerUrls = [];
+  List<String> get bannerUrls => _bannerUrls;
 
   bool _soyAdminEnFirestore = false;
   bool get esAdmin => _usuario?.email == 'krvillamil1990@gmail.com' || _soyAdminEnFirestore;
@@ -156,6 +168,32 @@ class ToofastProvider extends ChangeNotifier {
     _cargarDatosLocales();
     _inicializarNotificaciones();
     _revisarLoginSilencioso();
+    _escucharEstadisticasGlobales();
+  }
+
+  void _escucharEstadisticasGlobales() {
+    // 1. Escuchar total de usuarios
+    FirebaseFirestore.instance.collection('usuarios').snapshots().listen((snapshot) {
+      _totalUsuarios = snapshot.docs.length;
+      notifyListeners();
+    });
+
+    // 2. Escuchar escaneos globales (usando un documento de stats centralizado)
+    FirebaseFirestore.instance.collection('stats').doc('globales').snapshots().listen((doc) {
+      if (doc.exists) {
+        _totalEscaneosGlobales = doc.data()?['total_escaneos'] ?? 0;
+        notifyListeners();
+      }
+    });
+
+    // 3. Escuchar URLs de banners de Revolico
+    FirebaseFirestore.instance.collection('stats').doc('banners').snapshots().listen((doc) {
+      if (doc.exists) {
+        final List<dynamic> data = doc.data()?['urls'] ?? [];
+        _bannerUrls = data.cast<String>();
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> _revisarLoginSilencioso() async {
@@ -182,6 +220,7 @@ class ToofastProvider extends ChangeNotifier {
         _esPremium = data['esPremium'] == true;
         _planActual = data['planActual'];
         _soyAdminEnFirestore = data['esAdmin'] == true;
+        _pruebaUsada = data['pruebaUsada'] == true;
         
         print("📡 Firestore: Usuario es Premium: $_esPremium | Plan: $_planActual");
 
@@ -232,6 +271,7 @@ class ToofastProvider extends ChangeNotifier {
         'esPremium': _esPremium,
         'vencimientoPremium': _vencimientoPremium?.toIso8601String(),
         'planActual': _planActual,
+        'pruebaUsada': _pruebaUsada,
         'esAdmin': esAdmin, // Mantiene el estatus de admin si lo tiene
         'ultima_conexion': FieldValue.serverTimestamp(),
         // Usamos set con merge para no sobrescribir fecha_registro si ya existe
@@ -335,6 +375,7 @@ class ToofastProvider extends ChangeNotifier {
     _palabraClave = prefs.getString('palabraClave') ?? ''; // Cargar palabra clave
     _notificacionesHabilitadas = prefs.getBool('notificacionesHabilitadas') ?? true;
     _planActual = prefs.getString('planActual');
+    _pruebaUsada = prefs.getBool('pruebaUsada') ?? false;
     _cantidadEscaneos = prefs.getInt('cantidadEscaneos') ?? 0;
     
     final savedCats = prefs.getStringList('categoriasVisibles');
@@ -448,6 +489,63 @@ class ToofastProvider extends ChangeNotifier {
     await _actualizarUsuarioEnFirestore();
   }
 
+  Future<String?> _getDeviceId() async {
+    final deviceInfo = DeviceInfoPlugin();
+    if (Platform.isAndroid) {
+      final androidInfo = await deviceInfo.androidInfo;
+      return androidInfo.id; // ID único del hardware en Android
+    } else if (Platform.isIOS) {
+      final iosInfo = await deviceInfo.iosInfo;
+      return iosInfo.identifierForVendor; // ID único del fabricante en iOS
+    }
+    return null;
+  }
+
+  Future<int> activarPruebaGratuita() async {
+    // Retorna: 1 (Éxito), 0 (Ya usada por usuario), -1 (Ya usada por este dispositivo), -2 (Error)
+    if (_usuario == null) return -2;
+    if (_pruebaUsada || _esPremium) return 0;
+
+    try {
+      final String? deviceId = await _getDeviceId();
+      if (deviceId == null) return -2;
+
+      // 1. Verificar si este dispositivo ya activó una prueba (con cualquier cuenta)
+      final deviceDoc = await FirebaseFirestore.instance.collection('dispositivos_pruebas').doc(deviceId).get();
+      
+      if (deviceDoc.exists) {
+        print("🚫 Intento de fraude: Este dispositivo ($deviceId) ya consumió su prueba gratuita.");
+        return -1; 
+      }
+
+      // 2. Si es apto, proceder con la activación
+      _esPremium = true;
+      _pruebaUsada = true;
+      _planActual = 'Prueba 3 Días';
+      _vencimientoPremium = DateTime.now().add(const Duration(days: 3));
+
+      // 3. Registrar en Firestore el dispositivo para bloquearlo a futuro
+      await FirebaseFirestore.instance.collection('dispositivos_pruebas').doc(deviceId).set({
+        'fecha': FieldValue.serverTimestamp(),
+        'usuario_id': _usuario!.id,
+        'email': _usuario!.email,
+      });
+
+      notifyListeners();
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('vencimientoPremium', _vencimientoPremium!.toIso8601String());
+      await prefs.setString('planActual', _planActual!);
+      await prefs.setBool('pruebaUsada', true);
+      
+      await _actualizarUsuarioEnFirestore();
+      return 1;
+    } catch (e) {
+      print("Error activando prueba: $e");
+      return -2;
+    }
+  }
+
   Future<void> adminActivarPremium(String userId, String plan) async {
     if (!esAdmin) return;
 
@@ -528,6 +626,9 @@ class ToofastProvider extends ChangeNotifier {
 
     _cantidadEscaneos++;
     _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
+    
+    // Incrementar estadísticas globales en Firestore
+    _incrementarEstadisticasGlobales();
 
     notifyListeners();
 
@@ -555,9 +656,21 @@ class ToofastProvider extends ChangeNotifier {
     });
   }
 
+  Future<void> _incrementarEstadisticasGlobales() async {
+    try {
+      await FirebaseFirestore.instance.collection('stats').doc('globales').set({
+        'total_escaneos': FieldValue.increment(1),
+        'ultima_actualizacion': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print("Error actualizando estadísticas globales: $e");
+    }
+  }
+
   Future<void> _guardarContadorEscaneos() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('cantidadEscaneos', _cantidadEscaneos);
+    _incrementarEstadisticasGlobales();
   }
 
   Future<void> _ejecutarScrapingReal() async {

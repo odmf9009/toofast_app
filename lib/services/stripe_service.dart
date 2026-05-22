@@ -28,6 +28,12 @@ class StripeService {
             paymentIntentClientSecret: paymentIntentData['client_secret'],
             merchantDisplayName: 'Toofast App',
             style: ThemeMode.dark,
+            // Configuración de Google Pay
+            googlePay: const PaymentSheetGooglePay(
+              merchantCountryCode: 'US',
+              currencyCode: 'USD',
+              testEnv: false, // Cambiar a true si estás en modo test
+            ),
             appearance: const PaymentSheetAppearance(
               colors: PaymentSheetAppearanceColors(
                 primary: AppColors.primary,
@@ -39,10 +45,11 @@ class StripeService {
         print("💳 Mostrando ventana de pago...");
         await _displayPaymentSheet(onPaymentResult);
       } else {
+        print("❌ Error: No se recibió el client_secret del servidor.");
         onPaymentResult(false);
       }
     } catch (e) {
-      print("Error en makePayment: $e");
+      print("Error detallado en makePayment: $e");
       onPaymentResult(false);
     }
   }

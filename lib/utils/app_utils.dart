@@ -60,62 +60,69 @@ class AppUtils {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (sheetContext) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
         decoration: const BoxDecoration(
           color: AppColors.surface, 
           borderRadius: BorderRadius.vertical(top: Radius.circular(30))
         ),
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 24), decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
-            const Text('Beneficios Premium 💎', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 8),
-            const Text('Lleva tu búsqueda de ofertas al siguiente nivel', style: TextStyle(color: AppColors.textLightGrey, fontSize: 14)),
-            const SizedBox(height: 32),
-            _buildBenefitItem(Icons.bolt, 'Escaneos en tiempo real', 'Sin límites de tiempo entre búsquedas.'),
-            _buildBenefitItem(Icons.search, 'Filtros avanzados', 'Búsqueda por palabras clave y rango de precios.'),
-            _buildBenefitItem(Icons.notifications_active, 'Notificaciones instantáneas', 'Entérate de las ofertas en el momento exacto.'),
-            _buildBenefitItem(Icons.visibility, 'Resultados desbloqueados', 'Accede a los 20 resultados de cada escaneo.'),
-            _buildBenefitItem(Icons.category_outlined, 'Filtro por categorías', 'Personaliza tu menú y oculta lo que no te interesa.'),
-            _buildBenefitItem(Icons.favorite, 'Favoritos ilimitados', 'Guarda todas las ofertas que quieras.'),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  if (!provider.estaLogueado) {
-                    Navigator.pop(sheetContext);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, inicia sesión para adquirir la membresía.'), backgroundColor: AppColors.errorRed));
-                    return;
-                  }
-
-                  if (provider.esPremium) {
-                    if (provider.planActual == '6 Meses + 20 Días') {
+        padding: EdgeInsets.only(
+          left: 32, 
+          right: 32, 
+          top: 32, 
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 32
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 24), decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+              const Text('Beneficios Premium 💎', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+              const SizedBox(height: 8),
+              const Text('Lleva tu búsqueda de ofertas al siguiente nivel', style: TextStyle(color: AppColors.textLightGrey, fontSize: 14)),
+              const SizedBox(height: 32),
+              _buildBenefitItem(Icons.bolt, 'Escaneos en tiempo real', 'Sin límites de tiempo entre búsquedas.'),
+              _buildBenefitItem(Icons.search, 'Filtros avanzados', 'Búsqueda por palabras clave y rango de precios.'),
+              _buildBenefitItem(Icons.notifications_active, 'Notificaciones instantáneas', 'Entérate de las ofertas en el momento exacto.'),
+              _buildBenefitItem(Icons.visibility, 'Resultados desbloqueados', 'Accede a los 20 resultados de cada escaneo.'),
+              _buildBenefitItem(Icons.category_outlined, 'Filtro por categorías', 'Personaliza tu menú y oculta lo que no te interesa.'),
+              _buildBenefitItem(Icons.favorite, 'Favoritos ilimitados', 'Guarda todas las ofertas que quieras.'),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (!provider.estaLogueado) {
                       Navigator.pop(sheetContext);
-                      mostrarPremiumDialog(context, "Usted ha adquirido la membresía máxima. ¡Gracias por tu apoyo!");
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, inicia sesión para adquirir la membresía.'), backgroundColor: AppColors.errorRed));
                       return;
                     }
-                  }
 
-                  Navigator.pop(sheetContext);
-                  _mostrarPlanesMembresia(context, provider);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary, 
-                  padding: const EdgeInsets.symmetric(vertical: 18), 
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), 
-                  elevation: 8, 
-                  shadowColor: AppColors.primary.withOpacity(0.4)
+                    if (provider.esPremium) {
+                      if (provider.planActual == '6 Meses + 20 Días') {
+                        Navigator.pop(sheetContext);
+                        mostrarPremiumDialog(context, "Usted ha adquirido la membresía máxima. ¡Gracias por tu apoyo!");
+                        return;
+                      }
+                    }
+
+                    Navigator.pop(sheetContext);
+                    _mostrarPlanesMembresia(context, provider);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary, 
+                    padding: const EdgeInsets.symmetric(vertical: 18), 
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), 
+                    elevation: 8, 
+                    shadowColor: AppColors.primary.withOpacity(0.4)
+                  ),
+                  child: Text(provider.esPremium ? 'Mejorar membresía' : 'Obtener membresía', 
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
-                child: Text(provider.esPremium ? 'Mejorar membresía' : 'Obtener membresía', 
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
               ),
-            ),
-            const SizedBox(height: 12),
-            const Center(child: Text('Cancela en cualquier momento', style: TextStyle(color: AppColors.textDarkGrey, fontSize: 12))),
-          ],
+              const SizedBox(height: 12),
+              const Center(child: Text('Cancela en cualquier momento', style: TextStyle(color: AppColors.textDarkGrey, fontSize: 12))),
+            ],
+          ),
         ),
       ),
     );
@@ -127,20 +134,69 @@ class AppUtils {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (modalContext) => Container(
-        height: MediaQuery.of(context).size.height * 0.6,
         decoration: const BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 24), decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
-            const Text('Selecciona tu plan 💎', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 24),
-            _buildPlanTile(context, modalContext, provider, '7 Días', 'Acceso total por una semana', '15 USD'),
-            _buildPlanTile(context, modalContext, provider, '1 Mes + 10 Días', 'Nuestra opción más popular', '40 USD', isPopular: true),
-            _buildPlanTile(context, modalContext, provider, '6 Meses + 20 Días', 'Ahorro máximo a largo plazo', '200 USD'),
-          ],
+        padding: EdgeInsets.only(
+          left: 32, 
+          right: 32, 
+          top: 32, 
+          bottom: MediaQuery.of(modalContext).viewInsets.bottom + 32
         ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 24), decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+              const Text('Selecciona tu plan 💎', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+              const SizedBox(height: 24),
+              _buildPlanTile(context, modalContext, provider, '7 Días', 'Acceso total por una semana', '15 USD'),
+              _buildPlanTile(context, modalContext, provider, '1 Mes + 10 Días', 'Nuestra opción más popular', '40 USD', isPopular: true),
+              _buildPlanTile(context, modalContext, provider, '6 Meses + 20 Días', 'Ahorro máximo a largo plazo', '200 USD'),
+              if (!provider.pruebaUsada && !provider.esPremium) ...[
+                const SizedBox(height: 16),
+                const Divider(color: AppColors.border),
+                const SizedBox(height: 16),
+                _buildPruebaGratuitaTile(context, modalContext, provider),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildPruebaGratuitaTile(BuildContext context, BuildContext modalContext, ToofastProvider provider) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [AppColors.premiumGreenStart, AppColors.premiumGreenEnd]),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        leading: const Icon(Icons.card_giftcard, color: Colors.white),
+        title: const Text('Prueba Gratuita 🎁', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        subtitle: const Text('3 días de beneficios Premium sin costo', style: TextStyle(color: Colors.white70, fontSize: 12)),
+        onTap: () async {
+          Navigator.pop(modalContext);
+          int resultado = await provider.activarPruebaGratuita();
+          
+          if (resultado == 1) {
+            mostrarPremiumDialog(context, "¡Prueba de 3 días activada! Disfruta de todos los beneficios Premium.");
+          } else if (resultado == -1) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Este dispositivo ya ha utilizado su prueba gratuita con otra cuenta."),
+                backgroundColor: AppColors.errorRed,
+              )
+            );
+          } else if (resultado == 0) {
+            mostrarPremiumDialog(context, "Usted ya ha utilizado su periodo de prueba.");
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Error al activar la prueba. Inténtalo más tarde."))
+            );
+          }
+        },
       ),
     );
   }
@@ -204,84 +260,89 @@ class AppUtils {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (bottomSheetContext) => Container(
-        height: MediaQuery.of(context).size.height * 0.5,
         decoration: const BoxDecoration(
           color: AppColors.surface, 
           borderRadius: BorderRadius.vertical(top: Radius.circular(30))
         ),
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 24), decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
-            Text('Pagar Plan: $plan 💳', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 12),
-            const Text('Selecciona tu método de pago preferido para activar tu membresía.', 
-              style: TextStyle(color: AppColors.textLightGrey, fontSize: 14)),
-            
-            const SizedBox(height: 30),
-            
-            // Simulación de métodos de pago
-            _buildMetodoPagoTile(
-              icon: Icons.credit_card, 
-              title: 'Tarjeta de Crédito / Débito', 
-              subtitle: 'Visa, Mastercard, etc.',
-              onTap: () {
-                Navigator.pop(bottomSheetContext); // Cerramos el modal de métodos de pago
-                _procesarPagoStripe(context, plan, provider);
-              }
-            ),
-            _buildMetodoPagoTile(
-              icon: Icons.account_balance_wallet_outlined, 
-              title: 'Billetera Digital', 
-              subtitle: 'Apple Pay, Google Pay',
-              onTap: () {
-                Navigator.pop(bottomSheetContext);
-                // Simulación para Billetera Digital
-                provider.activarPlanPremium(plan);
-                mostrarPremiumDialog(context, "¡Felicidades! Pago con Billetera Digital exitoso. Has activado el plan de $plan.");
-              }
-            ),
-            
-            const Spacer(),
-            
-            // Sección de contacto WhatsApp
-            Center(
-              child: Column(
-                children: [
-                  const Text('¿No puedes pagar en línea?', 
-                    style: TextStyle(color: AppColors.textLightGrey, fontSize: 13)),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () async {
-                      final Uri url = Uri.parse("https://wa.me/18483843040?text=Hola,%20necesito%20ayuda%20para%20pagar%20el%20plan%20$plan%20de%20Toofast");
-                      if (await canLaunchUrl(url)) {
-                        await launchUrl(url, mode: LaunchMode.externalApplication);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF25D366).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: const Color(0xFF25D366), width: 1)
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.chat, color: Color(0xFF25D366), size: 18),
-                          SizedBox(width: 10),
-                          Text('Contactar por WhatsApp', 
-                            style: TextStyle(color: Color(0xFF25D366), fontWeight: FontWeight.bold, fontSize: 14)),
-                        ],
+        padding: EdgeInsets.only(
+          left: 32, 
+          right: 32, 
+          top: 32, 
+          bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom + 32
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 24), decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+              Text('Pagar Plan: $plan 💳', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+              const SizedBox(height: 12),
+              const Text('Selecciona tu método de pago preferido para activar tu membresía.', 
+                style: TextStyle(color: AppColors.textLightGrey, fontSize: 14)),
+              
+              const SizedBox(height: 30),
+              
+              // Simulación de métodos de pago
+              _buildMetodoPagoTile(
+                icon: Icons.credit_card, 
+                title: 'Tarjeta de Crédito / Débito', 
+                subtitle: 'Visa, Mastercard, etc.',
+                onTap: () {
+                  Navigator.pop(bottomSheetContext); // Cerramos el modal de métodos de pago
+                  _procesarPagoStripe(context, plan, provider);
+                }
+              ),
+              _buildMetodoPagoTile(
+                icon: Icons.account_balance_wallet_outlined, 
+                title: 'Billetera Digital', 
+                subtitle: 'Google Pay',
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _procesarPagoStripe(context, plan, provider);
+                }
+              ),
+              
+              const SizedBox(height: 32),
+              
+              // Sección de contacto WhatsApp
+              Center(
+                child: Column(
+                  children: [
+                    const Text('¿No puedes pagar en línea?', 
+                      style: TextStyle(color: AppColors.textLightGrey, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () async {
+                        final Uri url = Uri.parse("https://wa.me/18483843040?text=Hola,%20necesito%20ayuda%20para%20pagar%20el%20plan%20$plan%20de%20Toofast");
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF25D366).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(color: const Color(0xFF25D366), width: 1)
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.chat, color: Color(0xFF25D366), size: 18),
+                            SizedBox(width: 10),
+                            Text('Contactar por WhatsApp', 
+                              style: TextStyle(color: Color(0xFF25D366), fontWeight: FontWeight.bold, fontSize: 14)),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-          ],
+              const SizedBox(height: 10),
+            ],
+          ),
         ),
       ),
     );
@@ -333,18 +394,23 @@ class AppUtils {
       currency: "usd",
       onPaymentResult: (success) {
         // Cerramos el diálogo de carga usando el mismo contexto de navegación
-        Navigator.of(context, rootNavigator: true).pop();
+        if (context.mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
 
         if (success) {
           provider.activarPlanPremium(plan);
           mostrarPremiumDialog(context, "¡Pago realizado con éxito! Tu plan de $plan ha sido activado.");
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("El pago no se pudo procesar. Verifique su conexión o tarjeta."),
-              backgroundColor: AppColors.errorRed,
-            ),
-          );
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Error de comunicación: No se pudo contactar con el servidor de pagos o la tarjeta fue rechazada. Revise su conexión o use un VPN si está en Cuba."),
+                backgroundColor: AppColors.errorRed,
+                duration: const Duration(seconds: 8),
+              ),
+            );
+          }
         }
       },
     );

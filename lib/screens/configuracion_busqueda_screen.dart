@@ -8,6 +8,8 @@ import '../widgets/feature_title.dart';
 import '../utils/app_utils.dart';
 import 'main_navigation_screen.dart';
 
+import 'dart:async';
+
 class ConfiguracionBusquedaScreen extends StatefulWidget {
   const ConfiguracionBusquedaScreen({super.key});
 
@@ -19,6 +21,21 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
   late TextEditingController _desdeController;
   late TextEditingController _hastaController;
   late TextEditingController _palabraClaveController;
+  late ScrollController _scrollController;
+  Timer? _scrollTimer;
+
+  final List<String> _bannerImages = [
+    'https://images.unsplash.com/photo-1598327105666-5b89351aff97?q=80&w=200&h=200&auto=format&fit=crop', // Celular
+    'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=200&h=200&auto=format&fit=crop', // Carro
+    'https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?q=80&w=200&h=200&auto=format&fit=crop', // Casa
+    'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=200&h=200&auto=format&fit=crop', // Split/AC
+    'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=200&h=200&auto=format&fit=crop', // Tenis
+    'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?q=80&w=200&h=200&auto=format&fit=crop', // Sofa
+    'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=200&h=200&auto=format&fit=crop', // Reloj
+    'https://images.unsplash.com/photo-1491553895911-0055eca6402d?q=80&w=200&h=200&auto=format&fit=crop', // Zapatos
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=200&h=200&auto=format&fit=crop', // Laptop
+    'https://images.unsplash.com/photo-1571171637578-41bc2dd41cd2?q=80&w=200&h=200&auto=format&fit=crop', // PC
+  ];
 
   @override
   void initState() {
@@ -27,6 +44,32 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
     _desdeController = TextEditingController(text: provider.precioDesde);
     _hastaController = TextEditingController(text: provider.precioHasta);
     _palabraClaveController = TextEditingController(text: provider.palabraClave);
+    _scrollController = ScrollController();
+
+    // Iniciar auto-scroll suave
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startAutoScroll();
+    });
+  }
+
+  void _startAutoScroll() {
+    _scrollTimer?.cancel();
+    _scrollTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (_scrollController.hasClients) {
+        double maxScroll = _scrollController.position.maxScrollExtent;
+        double currentScroll = _scrollController.offset;
+        
+        if (currentScroll >= maxScroll) {
+          _scrollController.jumpTo(0);
+        } else {
+          _scrollController.animateTo(
+            currentScroll + 1,
+            duration: const Duration(milliseconds: 50),
+            curve: Curves.linear,
+          );
+        }
+      }
+    });
   }
 
   @override
@@ -34,6 +77,8 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
     _desdeController.dispose();
     _hastaController.dispose();
     _palabraClaveController.dispose();
+    _scrollController.dispose();
+    _scrollTimer?.cancel();
     super.dispose();
   }
 
@@ -86,7 +131,40 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
                   ],
                 ),
               ),
-              const SizedBox(height: 35),
+              const SizedBox(height: 25),
+              
+              // Banner de Anuncios Revolico (Tira de cuadraditos)
+              SizedBox(
+                height: 100,
+                child: ListView.builder(
+                  controller: _scrollController,
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(), // El timer controla el scroll
+                  itemCount: 1000, // Simulamos infinito
+                  itemBuilder: (context, index) {
+                    final urls = toofastProvider.bannerUrls.isNotEmpty 
+                        ? toofastProvider.bannerUrls 
+                        : _bannerImages;
+                    
+                    final imageUrl = urls[index % urls.length];
+                    return Container(
+                      width: 100,
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border, width: 1),
+                        image: DecorationImage(
+                          image: NetworkImage(imageUrl),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              const SizedBox(height: 25),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(

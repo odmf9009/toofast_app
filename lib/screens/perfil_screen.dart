@@ -10,6 +10,7 @@ import '../components/section_title.dart';
 import '../utils/app_utils.dart';
 import 'datos_usuario_screen.dart';
 import 'panel_admin_usuarios_screen.dart';
+import 'acerca_de_screen.dart';
 
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
@@ -194,28 +195,17 @@ class PerfilScreen extends StatelessWidget {
               value: toofastProvider.notificacionesHabilitadas, 
               onChanged: (v) => toofastProvider.setNotificaciones(v)
             ),
-            const SettingTile(icon: Icons.history, title: 'Limpiar historial', subtitle: 'Borrar búsquedas pasadas'),
             const SizedBox(height: 24),
             const SectionTitle(title: 'Cuenta y Seguridad'),
             SettingTile(
-              icon: Icons.lock_outline, 
-              title: 'Privacidad', 
-              subtitle: 'Gestionar mis datos', 
-              onTap: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const DatosUsuarioScreen())); }
-            ),
-            const SettingTile(icon: Icons.info_outline, title: 'Acerca de Toofast', subtitle: 'Versión 1.0.2'),
-            
-            const SizedBox(height: 24),
-            const SectionTitle(title: 'Personalización'),
-            SettingTile(
-              icon: Icons.category_outlined, 
-              title: 'Filtrar Categorías', 
-              subtitle: 'Elegir qué mostrar en el Home', 
+              icon: Icons.info_outline, 
+              title: 'Acerca de Toofast', 
+              subtitle: 'Versión 1.0.2',
               onTap: () {
-                Scaffold.of(context).openDrawer();
-              }
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const AcercaDeScreen()));
+              },
             ),
-
+            
             if (toofastProvider.esAdmin) ...[
               const SizedBox(height: 24),
               const SectionTitle(title: 'Administración'),

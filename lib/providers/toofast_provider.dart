@@ -70,6 +70,13 @@ class ToofastProvider extends ChangeNotifier {
   bool _notificacionesHabilitadas = true;
   bool get notificacionesHabilitadas => _notificacionesHabilitadas;
 
+  // 🤖 Opciones Premium: Auto-guardar
+  bool _autoGuardarAlertas = false;
+  bool get autoGuardarAlertas => _autoGuardarAlertas;
+
+  int _maxAutoGuardados = 5;
+  int get maxAutoGuardados => _maxAutoGuardados;
+
   String _categoria = 'vehiculos';
   String get categoria => _categoria;
 
@@ -374,6 +381,8 @@ class ToofastProvider extends ChangeNotifier {
     _categoria = prefs.getString('categoria') ?? 'vehiculos';
     _palabraClave = prefs.getString('palabraClave') ?? ''; // Cargar palabra clave
     _notificacionesHabilitadas = prefs.getBool('notificacionesHabilitadas') ?? true;
+    _autoGuardarAlertas = prefs.getBool('autoGuardarAlertas') ?? false;
+    _maxAutoGuardados = prefs.getInt('maxAutoGuardados') ?? 5;
     _planActual = prefs.getString('planActual');
     _pruebaUsada = prefs.getBool('pruebaUsada') ?? false;
     _cantidadEscaneos = prefs.getInt('cantidadEscaneos') ?? 0;
@@ -458,6 +467,24 @@ class ToofastProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('notificacionesHabilitadas', valor);
+  }
+
+  void setAutoGuardar(bool valor) async {
+    if (!_esPremium) return;
+    _autoGuardarAlertas = valor;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('autoGuardarAlertas', valor);
+  }
+
+  void setMaxAutoGuardados(int valor) async {
+    if (!_esPremium) return;
+    if (valor < 1) valor = 1;
+    if (valor > 10) valor = 10;
+    _maxAutoGuardados = valor;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('maxAutoGuardados', valor);
   }
 
   Future<void> activarPlanPremium(String plan) async {
@@ -609,11 +636,19 @@ class ToofastProvider extends ChangeNotifier {
   }) async {
     _isEscaneando = true;
 
-    // 🔒 REGLAS FREEMIUM: Forzar valores si no es premium
+    // 🔒 REGLAS FREEMIUM: Ajustar valores según nivel de suscripción
     if (!_esPremium) {
-      _precioDesde = '';
-      _precioHasta = '';
-      _palabraClave = '';
+      _precioDesde = desde;
+      _precioHasta = hasta;
+      
+      // Permitir solo una palabra para usuarios FREE
+      String keyword = palabraClave.trim();
+      if (keyword.contains(' ')) {
+        _palabraClave = keyword.split(' ')[0];
+      } else {
+        _palabraClave = keyword;
+      }
+
       _frecuencia = '1hora';
     } else {
       _precioDesde = desde;
@@ -835,6 +870,25 @@ class ToofastProvider extends ChangeNotifier {
 
               if (nuevosChollosParaNotificar.isNotEmpty && _isEscaneando) {
                 _dispararNotificacion(nuevosChollosParaNotificar.length);
+                
+                // 💎 Lógica Premium: Auto-guardar
+                if (_esPremium && _autoGuardarAlertas) {
+                  int guardadosEnEsteCiclo = 0;
+                  for (var chollo in nuevosChollosParaNotificar) {
+                    if (guardadosEnEsteCiclo >= _maxAutoGuardados) break;
+                    
+                    // Solo guardar si no existe ya en favoritos
+                    if (!_ofertasGuardadas.any((fav) => fav['id'] == chollo['id'])) {
+                      _ofertasGuardadas.add(chollo);
+                      guardadosEnEsteCiclo++;
+                    }
+                  }
+                  if (guardadosEnEsteCiclo > 0) {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('favoritos', jsonEncode(_ofertasGuardadas));
+                  }
+                }
+
                 for (var chollo in nuevosChollosParaNotificar) {
                   _idsNotificados.add(chollo['id']!);
                 }
@@ -925,8 +979,31 @@ class ToofastProvider extends ChangeNotifier {
             var matchNum = soloNum.firstMatch(raw);
             if (matchNum != null) ofertas[i]['fotos'] = matchNum.group(1)!;
           }
+
+          // E. WhatsApp (Extraer número de wa.me)
+          // Patrón: https://wa.me/5350237290
+          RegExp regWA = RegExp(r'https://wa\.me/(\d+)');
+          var matchWA = regWA.firstMatch(html);
+          if (matchWA != null) {
+            ofertas[i]['whatsapp'] = matchWA.group(1) ?? "";
+          } else {
+            // Intento alternativo por si el número está en el texto pero no en el href
+            RegExp regPhoneText = RegExp(r'\+53\s?\d\s?\d+');
+            var matchPhoneText = regPhoneText.firstMatch(html);
+            if (matchPhoneText != null) {
+              ofertas[i]['whatsapp'] = matchPhoneText.group(0)!.replaceAll(RegExp(r'[^\d]'), '');
+            }
+          }
+
+          // F. Teléfono (Extraer número de tel:)
+          // Patrón: tel:+5354840756
+          RegExp regTel = RegExp(r'href="tel:(\+?\d+)"');
+          var matchTel = regTel.firstMatch(html);
+          if (matchTel != null) {
+            ofertas[i]['telefono'] = matchTel.group(1) ?? "";
+          }
           
-          print("✅ [OK] ${ofertas[i]['titulo']} -> ${ofertas[i]['tiempo']}");
+          print("✅ [OK] ${ofertas[i]['titulo']} -> WhatsApp: ${ofertas[i]['whatsapp'] ?? 'N/A'}, Tel: ${ofertas[i]['telefono'] ?? 'N/A'}");
           notifyListeners(); 
         }
       } catch (e) {

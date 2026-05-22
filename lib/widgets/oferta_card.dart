@@ -119,6 +119,42 @@ class OfertaCard extends StatelessWidget {
                                 ),
                               ],
                             ),
+                            if ((item['whatsapp'] != null && item['whatsapp']!.isNotEmpty) || (item['telefono'] != null && item['telefono']!.isNotEmpty)) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  if (item['whatsapp'] != null && item['whatsapp']!.isNotEmpty)
+                                    GestureDetector(
+                                      onTap: () async {
+                                        final number = item['whatsapp'];
+                                        final url = Uri.parse("https://wa.me/$number");
+                                        if (await canLaunchUrl(url)) {
+                                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                                        }
+                                      },
+                                      child: const Padding(
+                                        padding: EdgeInsets.only(right: 12.0),
+                                        child: Icon(Icons.forum_outlined, color: Colors.greenAccent, size: 16),
+                                      ),
+                                    ),
+                                  if (item['telefono'] != null && item['telefono']!.isNotEmpty)
+                                    GestureDetector(
+                                      onTap: () async {
+                                        final String number = item['telefono']!;
+                                        // Aseguramos que el número tenga el formato tel: para el dialer
+                                        final Uri url = Uri.parse("tel:$number");
+                                        if (await canLaunchUrl(url)) {
+                                          await launchUrl(url);
+                                        } else {
+                                          // Intento forzado si canLaunchUrl falla
+                                          await launchUrl(url);
+                                        }
+                                      },
+                                      child: const Icon(Icons.phone_enabled, color: AppColors.primary, size: 15),
+                                    ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),

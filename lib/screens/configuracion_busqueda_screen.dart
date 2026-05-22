@@ -216,7 +216,7 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
                     ),
 
                     const SizedBox(height: 18),
-                    FeatureTitle(title: 'Rango de precio (USD)', isLocked: !toofastProvider.esPremium),
+                    const Text('Rango de precio (USD)', style: TextStyle(color: AppColors.textLightGrey, fontSize: 12)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -224,7 +224,7 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
                           child: CustomTextField(
                             controller: _desdeController,
                             prefix: 'Desde',
-                            enabled: toofastProvider.esPremium,
+                            enabled: true,
                           ),
                         ),
                         const Padding(
@@ -235,14 +235,19 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
                           child: CustomTextField(
                             controller: _hastaController,
                             prefix: 'Hasta',
-                            enabled: toofastProvider.esPremium,
+                            enabled: true,
                           ),
                         ),
                       ],
                     ),
 
                     const SizedBox(height: 18),
-                    FeatureTitle(title: 'Palabra clave (opcional)', isLocked: !toofastProvider.esPremium),
+                    const Text('Palabra clave (opcional)', style: TextStyle(color: AppColors.textLightGrey, fontSize: 12)),
+                    if (!toofastProvider.esPremium)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4.0),
+                        child: Text('Free: Máximo 1 palabra', style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
                     const SizedBox(height: 8),
 
                     Container(
@@ -254,20 +259,20 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
                       ),
                       child: TextField(
                         controller: _palabraClaveController,
-                        enabled: toofastProvider.esPremium,
-                        style: TextStyle(
-                          color: toofastProvider.esPremium ? Colors.white : Colors.grey, 
+                        enabled: true,
+                        style: const TextStyle(
+                          color: Colors.white, 
                           fontSize: 13, 
                           fontWeight: FontWeight.bold
                         ),
-                        decoration: InputDecoration(
-                          hintText: toofastProvider.esPremium ? 'Ej. Samsung, Smart TV' : 'Bloqueado (Solo Premium 🔒)',
-                          hintStyle: const TextStyle(color: AppColors.textDarkGrey, fontSize: 13, fontWeight: FontWeight.normal),
+                        decoration: const InputDecoration(
+                          hintText: 'Ej. Samsung, Smart TV',
+                          hintStyle: TextStyle(color: AppColors.textDarkGrey, fontSize: 13, fontWeight: FontWeight.normal),
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                          suffixIcon: const Icon(Icons.search, color: AppColors.textDarkGrey, size: 18),
-                          suffixIconConstraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                          contentPadding: EdgeInsets.symmetric(vertical: 14),
+                          suffixIcon: Icon(Icons.search, color: AppColors.textDarkGrey, size: 18),
+                          suffixIconConstraints: BoxConstraints(minWidth: 24, minHeight: 24),
                         ),
                       ),
                     ),
@@ -341,6 +346,54 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
                         ),
                       ),
                     ),
+                    const SizedBox(height: 18),
+                    FeatureTitle(title: 'Auto-guardar alertas', isLocked: !toofastProvider.esPremium),
+                    const SizedBox(height: 8),
+                    
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.background, 
+                        borderRadius: BorderRadius.circular(8), 
+                        border: Border.all(color: AppColors.border)
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Guardar automáticamente en Favoritos', style: TextStyle(color: Colors.white, fontSize: 13)),
+                              Switch(
+                                value: toofastProvider.autoGuardarAlertas,
+                                activeColor: AppColors.primary,
+                                onChanged: toofastProvider.esPremium ? (val) => toofastProvider.setAutoGuardar(val) : null,
+                              ),
+                            ],
+                          ),
+                          if (toofastProvider.autoGuardarAlertas && toofastProvider.esPremium) ...[
+                            const Divider(color: AppColors.border, height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Máximo por escaneo: ${toofastProvider.maxAutoGuardados}', style: const TextStyle(color: AppColors.textLightGrey, fontSize: 12)),
+                                Expanded(
+                                  child: Slider(
+                                    value: toofastProvider.maxAutoGuardados.toDouble(),
+                                    min: 1,
+                                    max: 10,
+                                    divisions: 9,
+                                    activeColor: AppColors.primary,
+                                    inactiveColor: AppColors.border,
+                                    onChanged: (val) => toofastProvider.setMaxAutoGuardados(val.toInt()),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,

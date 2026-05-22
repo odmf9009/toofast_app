@@ -4,6 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import '../providers/toofast_provider.dart';
 import 'package:intl/intl.dart';
+import 'politica_privacidad_screen.dart';
+import 'terminos_condiciones_screen.dart';
+import 'licencias_terceros_screen.dart';
 
 class AcercaDeScreen extends StatelessWidget {
   const AcercaDeScreen({super.key});
@@ -74,9 +77,24 @@ class AcercaDeScreen extends StatelessWidget {
             const SizedBox(height: 24),
             
             _buildSectionTitle('Legal'),
-            _buildActionButton(Icons.privacy_tip_outlined, 'Política de privacidad', () {}),
-            _buildActionButton(Icons.description_outlined, 'Términos y condiciones', () {}),
-            _buildActionButton(Icons.list_alt_outlined, 'Licencias de terceros', () {}),
+            _buildActionButton(Icons.privacy_tip_outlined, 'Política de privacidad', () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PoliticaPrivacidadScreen()),
+              );
+            }),
+            _buildActionButton(Icons.description_outlined, 'Términos y condiciones', () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const TerminosCondicionesScreen()),
+              );
+            }),
+            _buildActionButton(Icons.list_alt_outlined, 'Licencias de terceros', () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LicenciasTercerosScreen()),
+              );
+            }),
             
             const SizedBox(height: 24),
             const Divider(color: AppColors.border),

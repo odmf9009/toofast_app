@@ -176,6 +176,12 @@ class ToofastProvider extends ChangeNotifier {
     _inicializarNotificaciones();
     _revisarLoginSilencioso();
     _escucharEstadisticasGlobales();
+    // Plan B: El admin actualiza los banners globales desde su dispositivo real
+    Timer(const Duration(seconds: 5), () {
+      if (esAdmin) {
+        _actualizarBannersGlobalesDesdeApp();
+      }
+    });
   }
 
   void _escucharEstadisticasGlobales() {
@@ -699,6 +705,79 @@ class ToofastProvider extends ChangeNotifier {
       }, SetOptions(merge: true));
     } catch (e) {
       print("Error actualizando estadísticas globales: $e");
+    }
+  }
+
+  // Plan B: Scraping de banners desde el dispositivo real (IP Residencial) para evitar 403
+  Future<void> _actualizarBannersGlobalesDesdeApp() async {
+    try {
+      // 1. Verificar cuándo fue la última actualización global
+      final doc = await FirebaseFirestore.instance.collection('stats').doc('banners').get();
+      if (doc.exists) {
+        final Timestamp? ultimaVez = doc.data()?['ultima_actualizacion'];
+        if (ultimaVez != null) {
+          final diferencia = DateTime.now().difference(ultimaVez.toDate());
+          // Si han pasado menos de 24 horas, no hacemos nada
+          if (diferencia.inHours < 24) {
+            print("⏳ [Admin] Banners actualizados hace ${diferencia.inHours}h. Próxima actualización en ${24 - diferencia.inHours}h.");
+            return;
+          }
+        }
+      }
+
+      print("🛰️ [Admin] Han pasado 24h. Iniciando actualización de banners globales...");
+
+      late HeadlessInAppWebView headlessWebView;
+      bool yaProcesado = false;
+
+      headlessWebView = HeadlessInAppWebView(
+        initialUrlRequest: URLRequest(url: WebUri("https://www.revolico.com/")),
+        onLoadStop: (controller, url) async {
+          if (yaProcesado) return;
+          yaProcesado = true;
+
+          final String? html = await controller.getHtml();
+          if (html != null) {
+            // Regex más precisa para capturar URLs de imágenes
+            final regex = RegExp(r'https://pic\.revolico\.com/pics/[a-zA-Z0-9._-]+\.jpg');
+            final matches = regex.allMatches(html);
+            
+            Map<String, String> uniqueAds = {};
+            
+            for (var m in matches) {
+              String url = m.group(0)!;
+              // Extraer el ID del anuncio de la URL (usualmente son los primeros dígitos antes del guion bajo)
+              // Ejemplo: .../pics/54522847_item_photo... -> ID: 54522847
+              String fileName = url.split('/').last;
+              String id = fileName.split('_').first;
+              
+              // Solo guardamos la primera imagen que encontremos de cada anuncio para evitar repetidos
+              if (!uniqueAds.containsKey(id)) {
+                uniqueAds[id] = url;
+              }
+            }
+
+            List<String> images = uniqueAds.values.toList();
+            images.shuffle(); // 🔀 Mezclamos para que el carrusel sea dinámico
+
+            if (images.isNotEmpty) {
+              final finalUrls = images.take(20).toList();
+              // Guardar en Firestore para que TODOS los usuarios lo vean
+              await FirebaseFirestore.instance.collection('stats').doc('banners').set({
+                'urls': finalUrls,
+                'ultima_actualizacion': FieldValue.serverTimestamp(),
+                'actualizado_por': _usuario?.email ?? 'admin_device'
+              });
+              print("✅ [Admin] Banners actualizados sin duplicados: ${finalUrls.length} fotos únicas.");
+            }
+          }
+          await headlessWebView.dispose();
+        },
+      );
+
+      await headlessWebView.run();
+    } catch (e) {
+      print("❌ Error en actualización de banners: $e");
     }
   }
 

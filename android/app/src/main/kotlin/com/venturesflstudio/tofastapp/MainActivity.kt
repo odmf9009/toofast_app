@@ -1,4 +1,4 @@
-package com.example.toofast_app
+package com.venturesflstudio.tofastapp
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,4 +1,4 @@
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
@@ -6,7 +6,7 @@ const axios = require("axios");
 
 admin.initializeApp();
 
-exports.createStripePaymentIntent = onRequest({ cors: true, secrets: ["STRIPE_SECRET_KEY"] }, async (req, res) => {
+exports.createStripePaymentIntent = onRequest({ cors: true, secrets: ["STRIPE_SECRET_KEY"], invoker: "public" }, async (req, res) => {
     // 1. Limpiar y validar la clave secreta
     const rawKey = process.env.STRIPE_SECRET_KEY || "";
     const cleanKey = rawKey.trim().replace(/['"]+/g, '');
@@ -51,7 +51,7 @@ exports.createStripePaymentIntent = onRequest({ cors: true, secrets: ["STRIPE_SE
 });
 
 // Función para activar el scraping manualmente desde una URL
-exports.triggerScraper = onRequest({ cors: true }, async (req, res) => {
+exports.triggerScraper = onRequest({ cors: true, invoker: "public" }, async (req, res) => {
     try {
         const cantidad = await ejecutarScrapingBanners();
         res.status(200).send(`✅ Scraping completado. Encontradas ${cantidad} imágenes. Revisa tu app.`);
@@ -63,6 +63,45 @@ exports.triggerScraper = onRequest({ cors: true }, async (req, res) => {
 // Función programada (Cada 1 hora)
 exports.revolicoScraper = onSchedule("every 1 hours", async (event) => {
     await ejecutarScrapingBanners();
+});
+
+// 🤖 FUNCIÓN DE ANÁLISIS CON IA (GEMINI) - Versión Llamable para evitar 403
+exports.analyzeDealWithAI = onCall({ secrets: ["GEMINI_API_KEY"] }, async (request) => {
+    try {
+        const { title, price, description } = request.data;
+        const apiKey = process.env.GEMINI_API_KEY;
+
+        if (!apiKey) {
+            return { score: 7, analysis: "IA activa en modo básico (Falta API Key)." };
+        }
+
+        const prompt = `Actúa como un experto en el mercado de compra-venta en Cuba.
+        Analiza este anuncio de Revolico:
+        Título: ${title}
+        Precio: ${price} USD
+        Descripción: ${description}
+
+        Responde ÚNICAMENTE en formato JSON con estos dos campos:
+        "score": (un número del 1 al 10 basado en qué tan buena oferta es)
+        "analysis": (una frase corta de máximo 15 palabras explicando por qué)
+
+        Considera la relación precio-producto en el mercado actual cubano.`;
+
+        const response = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+            {
+                contents: [{ parts: [{ text: prompt }] }]
+            }
+        );
+
+        const aiText = response.data.candidates[0].content.parts[0].text;
+        const jsonMatch = aiText.match(/\{.*\}/s);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : { score: 7, analysis: "Análisis completado." };
+
+    } catch (error) {
+        logger.error("Error en IA Gemini:", error);
+        return { score: 0, analysis: "IA fuera de línea temporalmente." };
+    }
 });
 
 async function ejecutarScrapingBanners() {

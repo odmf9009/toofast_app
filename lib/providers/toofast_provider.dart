@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -47,6 +48,92 @@ class ToofastProvider extends ChangeNotifier {
   List<String> _bannerUrls = [];
   List<String> get bannerUrls => _bannerUrls;
 
+  Map<String, List<Map<String, String>>> _subcategorias = {
+    'vehiculos': [
+      {'name': 'Motos Eléctricas y Triciclos', 'slug': 'vehiculos-motos-electricas-y-triciclos'},
+      {'name': 'Motos de Combustión', 'slug': 'vehiculos-motos-de-combustion'},
+      {'name': 'Repuestos y Accesorios de Motos', 'slug': 'vehiculos-repuestos-y-accesorios-de-motos'},
+      {'name': 'Carros', 'slug': 'vehiculos-carros'},
+      {'name': 'Repuestos y Accesorios de Carros', 'slug': 'vehiculos-repuestos-y-accesorios-de-carros'},
+      {'name': 'Bicicletas', 'slug': 'vehiculos-bicicletas'},
+      {'name': 'Alquiler de Carros', 'slug': 'vehiculos-alquiler-de-carros'},
+      {'name': 'Otros - Vehículos', 'slug': 'vehiculos-otros-vehiculos'},
+    ],
+    'inmobiliaria': [
+      {'name': 'Casas', 'slug': 'inmobiliaria-casas'},
+      {'name': 'Alquiler a Cubanos', 'slug': 'inmobiliaria-alquiler-a-cubanos'},
+      {'name': 'Alquiler a Extranjeros', 'slug': 'inmobiliaria-alquiler-a-extranjeros'},
+      {'name': 'Alquiler Vacacional', 'slug': 'inmobiliaria-alquiler-vacacional'},
+      {'name': 'Permutas', 'slug': 'inmobiliaria-permutas'},
+      {'name': 'Otros - Inmobiliaria', 'slug': 'inmobiliaria-otros-inmobiliaria'},
+    ],
+    'tecnologia': [
+      {'name': 'Celulares y Accesorios', 'slug': 'tecnologia-celulares-y-accesorios'},
+      {'name': 'Televisores e Imagen', 'slug': 'tecnologia-televisores-e-imagen'},
+      {'name': 'Computadoras y Tablets', 'slug': 'tecnologia-computadoras-y-tablets'},
+      {'name': 'Accesorios de Computadoras', 'slug': 'tecnologia-accesorios-de-computadoras'},
+      {'name': 'Consolas y Videojuegos', 'slug': 'tecnologia-consolas-y-videojuegos'},
+      {'name': 'Audífonos, Bocinas y Sonido', 'slug': 'tecnologia-audifonos-bocinas-y-sonido'},
+      {'name': 'Cámaras y Fotografía', 'slug': 'tecnologia-camaras-y-fotografia'},
+      {'name': 'Otros - Tecnología', 'slug': 'tecnologia-otros-tecnologia'},
+    ],
+    'ropa-y-accesorios': [
+      {'name': 'Ropa de Mujer', 'slug': 'ropa-y-accesorios-ropa-de-mujer'},
+      {'name': 'Zapatos de Mujer', 'slug': 'ropa-y-accesorios-zapatos-de-mujer'},
+      {'name': 'Ropa de Hombre', 'slug': 'ropa-y-accesorios-ropa-de-hombre'},
+      {'name': 'Zapatos de Hombre', 'slug': 'ropa-y-accesorios-zapatos-de-hombre'},
+      {'name': 'Relojes, Joyas y Accesorios', 'slug': 'ropa-y-accesorios-relojes-joyas-y-accesorios'},
+      {'name': 'Belleza, Maquillaje y Perfumes', 'slug': 'ropa-y-accesorios-belleza-maquillaje-y-perfumes'},
+      {'name': 'Otros - Ropa y Accesorios', 'slug': 'ropa-y-accesorios-otros-ropa-y-accesorios'},
+    ],
+    'servicios': [
+      {'name': 'Construcción y Mantenimiento', 'slug': 'servicios-construccion-y-mantenimiento'},
+      {'name': 'Catering y Comida a Domicilio', 'slug': 'servicios-catering-y-comida-a-domicilio'},
+      {'name': 'Belleza, Salud y Cuidado Personal', 'slug': 'servicios-belleza-salud-y-cuidado-personal'},
+      {'name': 'Talleres y Reparaciones', 'slug': 'servicios-talleres-y-reparaciones'},
+      {'name': 'Eventos y Entretenimiento', 'slug': 'servicios-eventos-y-entretenimiento'},
+      {'name': 'Limpieza y Cuidado', 'slug': 'servicios-limpieza-y-cuidado'},
+      {'name': 'Clases y Cursos', 'slug': 'servicios-clases-y-cursos'},
+      {'name': 'Informática, Creatividad y Marketing', 'slug': 'servicios-informatica-creatividad-y-marketing'},
+      {'name': 'Transporte y Logística', 'slug': 'servicios-transporte-y-logistica'},
+    ],
+    'electrodomesticos': [
+      {'name': 'Refrigeradores y Neveras', 'slug': 'electrodomesticos-refrigeradores-y-neveras'},
+      {'name': 'Lavadoras y Secadoras', 'slug': 'electrodomesticos-lavadoras-y-secadoras'},
+      {'name': 'Cocinas y Hornos', 'slug': 'electrodomesticos-cocinas-y-hornos'},
+      {'name': 'Ventiladores', 'slug': 'electrodomesticos-ventiladores'},
+      {'name': 'Aire Acondicionado', 'slug': 'electrodomesticos-aire-acondicionado'},
+      {'name': 'Pequeño Electrodoméstico', 'slug': 'electrodomesticos-pequeno-electrodomestico'},
+      {'name': 'Otros - Electrodomésticos', 'slug': 'electrodomesticos-otros-electrodomesticos'},
+    ],
+    'empleos': [
+      {'name': 'Ofertas de Empleo', 'slug': 'empleos-ofertas-de-empleo'},
+      {'name': 'Busco Empleo', 'slug': 'empleos-busco-empleo'},
+    ],
+    'hogar': [
+      {'name': 'Muebles', 'slug': 'hogar-muebles'},
+      {'name': 'Arte, Antigüedades y Colección', 'slug': 'hogar-arte-antiguedades-y-coleccion'},
+      {'name': 'Plantas y Estaciones de Energía', 'slug': 'hogar-plantas-y-estaciones-de-energia'},
+      {'name': 'Materiales de Construcción', 'slug': 'hogar-materiales-de-construccion'},
+      {'name': 'Ferretería y Herramientas', 'slug': 'hogar-ferreteria-y-herramientas'},
+      {'name': 'Artículos del Hogar', 'slug': 'hogar-articulos-del-hogar'},
+      {'name': 'Otros - Hogar', 'slug': 'hogar-otros-hogar'},
+    ]
+  };
+  Map<String, List<Map<String, String>>> get subcategorias => _subcategorias;
+
+  Map<String, String> _nombresCategorias = {
+    'vehiculos': 'Vehículos',
+    'inmobiliaria': 'Inmobiliaria',
+    'tecnologia': 'Tecnología',
+    'ropa-y-accesorios': 'Ropa y Accesorios',
+    'servicios': 'Servicios',
+    'electrodomesticos': 'Electrodomésticos',
+    'empleos': 'Empleos',
+    'hogar': 'Hogar',
+  };
+  Map<String, String> get nombresCategorias => _nombresCategorias;
+
   bool _soyAdminEnFirestore = false;
   bool get esAdmin => _usuario?.email == 'krvillamil1990@gmail.com' || _soyAdminEnFirestore;
 
@@ -80,6 +167,9 @@ class ToofastProvider extends ChangeNotifier {
   String _categoria = 'vehiculos';
   String get categoria => _categoria;
 
+  String _subcategoria = '';
+  String get subcategoria => _subcategoria;
+
   String _precioDesde = '';
   String _precioHasta = '';
   String get precioDesde => _precioDesde;
@@ -109,10 +199,10 @@ class ToofastProvider extends ChangeNotifier {
     'vehiculos',
     'inmobiliaria',
     'tecnologia',
-    'electrodomesticos',
     'ropa-y-accesorios',
-    'familia',
-    'general',
+    'servicios',
+    'electrodomesticos',
+    'empleos',
     'hogar'
   ];
 
@@ -120,10 +210,10 @@ class ToofastProvider extends ChangeNotifier {
     'vehiculos',
     'inmobiliaria',
     'tecnologia',
-    'electrodomesticos',
     'ropa-y-accesorios',
-    'familia',
-    'general',
+    'servicios',
+    'electrodomesticos',
+    'empleos',
     'hogar'
   ];
   List<String> get categoriasVisibles => _categoriasVisibles;
@@ -205,6 +295,25 @@ class ToofastProvider extends ChangeNotifier {
         final List<dynamic> data = doc.data()?['urls'] ?? [];
         _bannerUrls = data.cast<String>();
         notifyListeners();
+      }
+    });
+
+    // 4. Escuchar subcategorías
+    FirebaseFirestore.instance.collection('stats').doc('categorias').snapshots().listen((doc) {
+      if (doc.exists) {
+        final Map<String, dynamic> data = doc.data() ?? {};
+        Map<String, List<Map<String, String>>> actualizadas = {};
+        
+        data.forEach((key, value) {
+          if (value is List && key != 'ultima_actualizacion') {
+            actualizadas[key] = value.map((item) => Map<String, String>.from(item)).toList();
+          }
+        });
+
+        if (actualizadas.isNotEmpty) {
+          _subcategorias = actualizadas;
+          notifyListeners();
+        }
       }
     });
   }
@@ -385,6 +494,7 @@ class ToofastProvider extends ChangeNotifier {
     _precioDesde = prefs.getString('precioDesde') ?? '';
     _precioHasta = prefs.getString('precioHasta') ?? '';
     _categoria = prefs.getString('categoria') ?? 'vehiculos';
+    _subcategoria = prefs.getString('subcategoria_seleccionada') ?? '';
     _palabraClave = prefs.getString('palabraClave') ?? ''; // Cargar palabra clave
     _notificacionesHabilitadas = prefs.getBool('notificacionesHabilitadas') ?? true;
     _autoGuardarAlertas = prefs.getBool('autoGuardarAlertas') ?? false;
@@ -421,6 +531,19 @@ class ToofastProvider extends ChangeNotifier {
       final List<dynamic> decoded = jsonDecode(favoritosJson);
       _ofertasGuardadas = decoded.map((item) => Map<String, String>.from(item)).toList();
     }
+
+    // Cargar subcategorías locales si existen
+    final String? subcatsJson = prefs.getString('subcategorias');
+    if (subcatsJson != null) {
+      final Map<String, dynamic> decoded = jsonDecode(subcatsJson);
+      _subcategorias = {};
+      decoded.forEach((key, value) {
+        if (value is List) {
+          _subcategorias[key] = value.map((item) => Map<String, String>.from(item)).toList();
+        }
+      });
+    }
+
     notifyListeners();
   }
 
@@ -465,7 +588,15 @@ class ToofastProvider extends ChangeNotifier {
 
   void cambiarCategoria(String nuevaCategoria) {
     _categoria = nuevaCategoria;
+    _subcategoria = ''; // Resetear subcategoría al cambiar categoría
     notifyListeners();
+  }
+
+  void cambiarSubcategoria(String nuevaSub) async {
+    _subcategoria = nuevaSub;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('subcategoria_seleccionada', nuevaSub);
   }
 
   void setNotificaciones(bool valor) async {
@@ -738,37 +869,88 @@ class ToofastProvider extends ChangeNotifier {
 
           final String? html = await controller.getHtml();
           if (html != null) {
-            // Regex más precisa para capturar URLs de imágenes
+            // 1. Extraer Banners
             final regex = RegExp(r'https://pic\.revolico\.com/pics/[a-zA-Z0-9._-]+\.jpg');
             final matches = regex.allMatches(html);
             
             Map<String, String> uniqueAds = {};
-            
             for (var m in matches) {
               String url = m.group(0)!;
-              // Extraer el ID del anuncio de la URL (usualmente son los primeros dígitos antes del guion bajo)
-              // Ejemplo: .../pics/54522847_item_photo... -> ID: 54522847
               String fileName = url.split('/').last;
               String id = fileName.split('_').first;
-              
-              // Solo guardamos la primera imagen que encontremos de cada anuncio para evitar repetidos
-              if (!uniqueAds.containsKey(id)) {
-                uniqueAds[id] = url;
-              }
+              if (!uniqueAds.containsKey(id)) uniqueAds[id] = url;
             }
 
             List<String> images = uniqueAds.values.toList();
-            images.shuffle(); // 🔀 Mezclamos para que el carrusel sea dinámico
+            images.shuffle();
 
             if (images.isNotEmpty) {
               final finalUrls = images.take(20).toList();
-              // Guardar en Firestore para que TODOS los usuarios lo vean
               await FirebaseFirestore.instance.collection('stats').doc('banners').set({
                 'urls': finalUrls,
                 'ultima_actualizacion': FieldValue.serverTimestamp(),
                 'actualizado_por': _usuario?.email ?? 'admin_device'
               });
-              print("✅ [Admin] Banners actualizados sin duplicados: ${finalUrls.length} fotos únicas.");
+            }
+
+            // 2. Extraer Categorías y Subcategorías (Deep Scan)
+            if (html.contains('id="__NEXT_DATA__"')) {
+              final String jsonString = html.split('id="__NEXT_DATA__"')[1].split('>')[1].split('</script>')[0].trim();
+              final Map<String, dynamic> data = jsonDecode(jsonString);
+              
+              // Intentar obtener de Props (Página Home)
+              List<dynamic> categoriesRaw = data['props']?['pageProps']?['categories'] ?? [];
+              
+              // Si está vacío, intentar obtener del Apollo State (Mucho más fiable)
+              if (categoriesRaw.isEmpty) {
+                final apollo = data['props']?['pageProps']?['__APOLLO_STATE__'] ?? {};
+                apollo.forEach((key, value) {
+                  if (key.startsWith('Category:')) {
+                    // Aquí podemos reconstruir la jerarquía si es necesario, 
+                    // pero usualmente los props son suficientes en el Home.
+                  }
+                });
+              }
+
+              Map<String, List<Map<String, String>>> allSubcats = {};
+              Map<String, String> names = {};
+
+              for (var cat in categoriesRaw) {
+                String catSlug = cat['slug'] ?? '';
+                String catName = cat['name'] ?? '';
+                if (catSlug.isEmpty) continue;
+
+                names[catSlug] = catName;
+                List<dynamic> children = cat['children'] ?? [];
+                if (children.isNotEmpty) {
+                  allSubcats[catSlug] = children.map((child) {
+                    String childSlug = child['slug'].toString();
+                    // 🛡️ REGLA CRÍTICA: Asegurar que el slug del hijo tenga el prefijo del padre
+                    // Si childSlug es 'celulares' y catSlug es 'tecnologia', el slug final debe ser 'tecnologia-celulares'
+                    if (!childSlug.startsWith(catSlug)) {
+                      childSlug = '$catSlug-$childSlug';
+                    }
+                    return {
+                      'name': child['name'].toString(),
+                      'slug': childSlug,
+                    };
+                  }).toList();
+                }
+              }
+
+              if (allSubcats.isNotEmpty) {
+                await FirebaseFirestore.instance.collection('stats').doc('categorias').set({
+                  ...allSubcats,
+                  'ultima_actualizacion': FieldValue.serverTimestamp(),
+                });
+                
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('subcategorias', jsonEncode(allSubcats));
+                _subcategorias = allSubcats;
+                _nombresCategorias = names;
+                print("✅ [Admin] Subcategorías actualizadas: ${allSubcats.length} categorías con hijos.");
+                notifyListeners();
+              }
             }
           }
           await headlessWebView.dispose();
@@ -788,223 +970,176 @@ class ToofastProvider extends ChangeNotifier {
   }
 
   Future<void> _ejecutarScrapingReal() async {
-    print("🌐 [Radar Real] Conectando a la sección oficial de $_categoria mediante navegador oculto...");
+    List<Map<String, String>> resultadosAcumulados = [];
+    List<Map<String, String>> nuevosParaNotificar = [];
+    // 📄 Siempre permitimos hasta 5 páginas para asegurar que llegamos a la meta de anuncios orgánicos
+    int paginasMax = 5;
+    int metaHits = _palabraClave.isNotEmpty ? 10 : 20; // 🎯 Meta: 10 para keyword, 20 para normal.
+
+    print("🚀 [Radar] Iniciando búsqueda exhaustiva ($paginasMax páginas max)...");
+
+    for (int i = 1; i <= paginasMax; i++) {
+      if (!_isEscaneando) break;
+      if (resultadosAcumulados.length >= metaHits) break;
+
+      print("📄 Escaneando página $i...");
+      final results = await _obtenerResultadosDePagina(i);
+      
+      for (var oferta in results) {
+        if (resultadosAcumulados.length >= metaHits) break;
+        
+        // Evitar duplicados en la misma tanda
+        if (!resultadosAcumulados.any((x) => x['id'] == oferta['id'])) {
+          resultadosAcumulados.add(oferta);
+          if (!_idsNotificados.contains(oferta['id'])) {
+            nuevosParaNotificar.add(oferta);
+          }
+        }
+      }
+    }
+
+    if (resultadosAcumulados.isNotEmpty) {
+      _ofertasEncontradas = resultadosAcumulados;
+      if (nuevosParaNotificar.isNotEmpty && _isEscaneando) {
+        _dispararNotificacion(nuevosParaNotificar.length);
+        
+        // 💎 Lógica Premium: Auto-guardar
+        if (_esPremium && _autoGuardarAlertas) {
+          int guardadosEnEsteCiclo = 0;
+          for (var chollo in nuevosParaNotificar) {
+            if (guardadosEnEsteCiclo >= _maxAutoGuardados) break;
+            if (!_ofertasGuardadas.any((fav) => fav['id'] == chollo['id'])) {
+              _ofertasGuardadas.add(chollo);
+              guardadosEnEsteCiclo++;
+            }
+          }
+          if (guardadosEnEsteCiclo > 0) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('favoritos', jsonEncode(_ofertasGuardadas));
+          }
+        }
+
+        for (var chollo in nuevosParaNotificar) {
+          _idsNotificados.add(chollo['id']!);
+        }
+      }
+      notifyListeners();
+      _enriquecerDatosEnSegundoPlano(resultadosAcumulados);
+    }
+  }
+
+  Future<List<Map<String, String>>> _obtenerResultadosDePagina(int pageNum) async {
+    final completer = Completer<List<Map<String, String>>>();
+    String urlOficial;
+    String subFinal = _subcategoria;
+    
+    if (subFinal.isNotEmpty && !subFinal.startsWith(_categoria)) {
+      subFinal = '$_categoria-$subFinal';
+    }
+
+    if (subFinal.isNotEmpty) {
+      urlOficial = 'https://www.revolico.com/search?category=$_categoria&subcategory=$subFinal&page=$pageNum';
+    } else {
+      urlOficial = 'https://www.revolico.com/search?category=$_categoria&page=$pageNum';
+    }
 
     try {
-      // 🚀 EVITAR CACHÉ: Añadimos un timestamp único a la URL
-      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-      final String urlOficial = 'https://www.revolico.com/search?category=$_categoria&t=$timestamp';
-      
-      late HeadlessInAppWebView headlessWebView;
+      HeadlessInAppWebView? headlessWebView;
       bool yaProcesado = false;
 
       headlessWebView = HeadlessInAppWebView(
         initialUrlRequest: URLRequest(
-            url: WebUri(urlOficial),
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0',
-            }
-        ),
-        initialSettings: InAppWebViewSettings(
-          cacheMode: CacheMode.LOAD_NO_CACHE, // 🛑 Forzar carga sin caché
-          clearCache: true,                   // 🧹 Limpiar caché al iniciar
+          url: WebUri(urlOficial),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+          }
         ),
         onLoadStop: (controller, url) async {
           if (yaProcesado) return;
           yaProcesado = true;
 
-          print("🔓 [Radar Real] ¡Navegador cargó la página con éxito! Extrayendo datos...");
-
           final String? html = await controller.getHtml();
+          List<Map<String, String>> resultados = [];
 
           if (html != null && html.contains('id="__NEXT_DATA__"')) {
             try {
-              final String parteInicial = html.split('id="__NEXT_DATA__"')[1].split('>')[1];
-              String jsonString = parteInicial.split('</script>')[0].trim();
-              if (jsonString.endsWith('</script')) {
-                jsonString = jsonString.replaceAll('</script', '').trim();
-              }
-
+              final String jsonString = html.split('id="__NEXT_DATA__"')[1].split('>')[1].split('</script>')[0].trim();
               final Map<String, dynamic> datosEstructurados = jsonDecode(jsonString);
-              final props = datosEstructurados['props'] ?? {};
-              final pageProps = props['pageProps'] ?? {};
-              final Map<String, dynamic> apolloState = pageProps['__APOLLO_STATE__'] ?? {};
+              final apolloState = datosEstructurados['pageProps']?['__APOLLO_STATE__'] ?? 
+                                 datosEstructurados['props']?['pageProps']?['__APOLLO_STATE__'] ?? {};
 
-              List<Map<String, String>> resultadosFiltrados = [];
-              List<Map<String, String>> nuevosChollosParaNotificar = [];
+              List<dynamic> itemsParaProcesar = [];
+              final rootQuery = apolloState['ROOT_QUERY'] ?? {};
+              String searchKey = rootQuery.keys.firstWhere((k) => k.startsWith('search'), orElse: () => "");
+              if (searchKey.isNotEmpty) itemsParaProcesar = rootQuery[searchKey]['results'] ?? [];
+
+              if (itemsParaProcesar.isEmpty) {
+                itemsParaProcesar = apolloState.values.where((v) => 
+                  v is Map && v.containsKey('title') && v.containsKey('price')
+                ).toList();
+              }
 
               int min = int.tryParse(_precioDesde) ?? 0;
               int max = int.tryParse(_precioHasta) ?? 999999;
 
-              // 1. OBTENER LA LISTA ORDENADA DESDE EL JSON (Súper fiable)
-              List<dynamic> listaOrdenadaRefs = [];
-              try {
-                final rootQuery = apolloState['ROOT_QUERY'] ?? {};
-                String searchKey = rootQuery.keys.firstWhere((k) => k.startsWith('search'), orElse: () => "");
-                if (searchKey.isNotEmpty) {
-                  listaOrdenadaRefs = rootQuery[searchKey]['results'] ?? [];
-                }
-              } catch (e) { print("Error buscando lista ordenada en JSON: $e"); }
-
-              Iterable<dynamic> itemsParaProcesar = listaOrdenadaRefs.isNotEmpty 
-                  ? listaOrdenadaRefs 
-                  : apolloState.values;
-
-              int contadorHits = 0;
               for (var item in itemsParaProcesar) {
-                if (contadorHits >= 20) break;
-                
-                var value = (item is Map && item.containsKey('__ref')) 
-                    ? apolloState[item['__ref']] 
-                    : item;
-
+                var value = (item is Map && item.containsKey('__ref')) ? apolloState[item['__ref']] : item;
                 if (value is Map && value.containsKey('price') && value.containsKey('title')) {
-                  // Filtro: Destacados
+                  
+                  // 🚫 EXCLUIR DESTACADOS: No procesar anuncios Premium o Destacados
                   bool esDestacado = value['isFeatured'] == true || value['isPremium'] == true;
                   if (esDestacado) continue;
 
-                  String idAnuncio = value['id']?.toString() ?? "";
-                  String titulo = value['title']?.toString() ?? 'Sin título';
-                  String precioStr = value['price']?.toString() ?? '0';
-                  int precioNum = int.tryParse(precioStr.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
+                  String titulo = value['title']?.toString() ?? '';
+                  String descripcion = value['description']?.toString() ?? '';
+                  
+                  // 💰 MEJORA DE PRECIO: Manejar comas y puntos correctamente (ej: 3,5 -> 3.5)
+                  String priceRaw = value['price']?.toString() ?? '0';
+                  // Reemplazamos coma por punto y quitamos todo lo que no sea número o punto
+                  String priceClean = priceRaw.replaceAll(',', '.').replaceAll(RegExp(r'[^0-9.]'), '');
+                  double precioDouble = double.tryParse(priceClean) ?? 0;
+                  int precio = precioDouble.floor();
 
-                  // Filtro: Rango de precio
-                  if (precioNum < min || precioNum > max) continue;
+                  if (precio < min || precio > max) continue;
 
-                  // Filtro: Palabra clave
-                  bool coincidePalabra = true;
+                  // 🔍 MEJORA DE COINCIDENCIA: Buscar en Título y Descripción
                   if (_palabraClave.isNotEmpty) {
-                    RegExp query = RegExp(_palabraClave, caseSensitive: false);
-                    if (!query.hasMatch(titulo)) coincidePalabra = false;
+                    String buscado = _palabraClave.toLowerCase().trim();
+                    bool matchTitulo = titulo.toLowerCase().contains(buscado);
+                    bool matchDesc = descripcion.toLowerCase().contains(buscado);
+                    
+                    if (!matchTitulo && !matchDesc) continue;
                   }
-                  if (!coincidePalabra) continue;
 
-                  // --- 🕵️‍♂️ EXTRACCIÓN DEL TIEMPO REAL DESDE EL HTML (Híbrido) ---
-                  String tiempo = "Reciente";
-                  String ubicacion = "Cuba";
-                  String fotos = "0";
-
-                  try {
-                    // Limpiamos el ID para asegurarnos de que sea solo el número
-                    String idNumerico = idAnuncio.replaceAll(RegExp(r'\D'), '');
-                    
-                    // Buscamos el bloque li que contiene el enlace con ese ID
-                    // El patrón busca: <li ... href="...-ID" ... </li>
-                    RegExp regBloque = RegExp('<li[^>]*data-cy="adRow"[^>]*>.*?href="[^"]*-$idNumerico".*?</li>', dotAll: true);
-                    var matchBloque = regBloque.firstMatch(html!);
-                    
-                    if (matchBloque != null) {
-                      String bloqueHtml = matchBloque.group(0)!;
-                      
-                      // Extraer Tiempo (<time>hace 5 minutos</time>)
-                      RegExp rTime = RegExp(r'<time>([^<]+)</time>');
-                      var mTime = rTime.firstMatch(bloqueHtml);
-                      if (mTime != null) {
-                        tiempo = mTime.group(1)!.trim();
-                      }
-
-                      // Extraer Ubicación (<span>Plaza, La Habana</span>)
-                      // Buscamos el primer span que tenga el formato "Texto, Texto"
-                      RegExp rLoc = RegExp(r'<span>([^<]+,\s+[^<]+)</span>');
-                      var mLoc = rLoc.firstMatch(bloqueHtml);
-                      if (mLoc != null) {
-                        ubicacion = mLoc.group(1)!.trim();
-                      }
-
-                      // Extraer Fotos (data-cy="adPhoto")
-                      RegExp rPhotos = RegExp(r'data-cy="adPhoto"[^>]*>.*?(\d+)', dotAll: true);
-                      var mPhotos = rPhotos.firstMatch(bloqueHtml);
-                      if (mPhotos != null) {
-                        fotos = mPhotos.group(1)!;
-                      }
-                    }
-                  } catch (e) { print("Error extrayendo datos HTML para $idAnuncio: $e"); }
-
-                  contadorHits++;
+                  String idAnuncio = value['id']?.toString() ?? "";
                   String permalink = value['permalink']?.toString() ?? '';
-                  String urlDirecta = "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink";
-
-                  var ofertaMap = {
+                  
+                  resultados.add({
                     'id': idAnuncio,
                     'titulo': titulo,
-                    'precio': precioNum.toString(),
-                    'tiempo': tiempo,
-                    'ubicacion': ubicacion,
-                    'fotos': fotos,
-                    'visitas': '',
-                    'enlace': urlDirecta,
+                    'precio': precio.toString(),
+                    'tiempo': 'Reciente',
+                    'ubicacion': 'Cuba',
+                    'enlace': "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink",
                     'imagen': '',
-                    'detalles': value['description']?.toString() ?? '',
-                  };
-
-                  resultadosFiltrados.add(ofertaMap);
-                  if (!_idsNotificados.contains(idAnuncio)) {
-                    nuevosChollosParaNotificar.add(ofertaMap);
-                  }
+                    'detalles': descripcion,
+                    'ia_puntuacion': '',
+                    'ia_analisis': '',
+                  });
                 }
               }
-
-              if (nuevosChollosParaNotificar.isNotEmpty && _isEscaneando) {
-                _dispararNotificacion(nuevosChollosParaNotificar.length);
-                
-                // 💎 Lógica Premium: Auto-guardar
-                if (_esPremium && _autoGuardarAlertas) {
-                  int guardadosEnEsteCiclo = 0;
-                  for (var chollo in nuevosChollosParaNotificar) {
-                    if (guardadosEnEsteCiclo >= _maxAutoGuardados) break;
-                    
-                    // Solo guardar si no existe ya en favoritos
-                    if (!_ofertasGuardadas.any((fav) => fav['id'] == chollo['id'])) {
-                      _ofertasGuardadas.add(chollo);
-                      guardadosEnEsteCiclo++;
-                    }
-                  }
-                  if (guardadosEnEsteCiclo > 0) {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setString('favoritos', jsonEncode(_ofertasGuardadas));
-                  }
-                }
-
-                for (var chollo in nuevosChollosParaNotificar) {
-                  _idsNotificados.add(chollo['id']!);
-                }
-              }
-
-              _ofertasEncontradas = resultadosFiltrados;
-              notifyListeners();
-
-              // 🚀 ENRIQUECER EN SEGUNDO PLANO (Imágenes y Visitas)
-              _enriquecerDatosEnSegundoPlano(resultadosFiltrados);
-
-            } catch (e) {
-              print("⚠️ Error analizando los datos dentro del navegador: $e");
-            }
-          } else {
-            print("⚠️ El navegador abrió la web pero no encontró el bloque __NEXT_DATA__.");
+            } catch (e) { print("Error parseando página $pageNum: $e"); }
           }
-
-          try {
-            await headlessWebView.dispose();
-          } catch (e) {
-            print("Aviso de cierre de motor: $e");
-          }
-        },
-        onLoadError: (controller, url, code, message) {
-          print("❌ Error en el navegador oculto: $message (Código: $code)");
-          if (!yaProcesado) {
-            headlessWebView.dispose();
-          }
+          completer.complete(resultados);
+          await headlessWebView?.dispose();
         },
       );
-
       await headlessWebView.run();
-
     } catch (e) {
-      print("❌ Error crítico en el motor invisible: $e");
+      print("Error en scrap de página $pageNum: $e");
+      if (!completer.isCompleted) completer.complete([]);
     }
+    return completer.future;
   }
 
   // 🕵️‍♂️ FUNCIÓN MAESTRA: Entra al anuncio y extrae TODO con precisión quirúrgica (Actualizado Estructura 2025)
@@ -1083,6 +1218,12 @@ class ToofastProvider extends ChangeNotifier {
           }
           
           print("✅ [OK] ${ofertas[i]['titulo']} -> WhatsApp: ${ofertas[i]['whatsapp'] ?? 'N/A'}, Tel: ${ofertas[i]['telefono'] ?? 'N/A'}");
+          
+          // G. 🤖 ANÁLISIS DE IA (Solo para Usuarios Premium)
+          if (_esPremium && ofertas[i]['ia_puntuacion']!.isEmpty) {
+            await _analizarOfertaConIA(ofertas[i]);
+          }
+
           notifyListeners(); 
         }
       } catch (e) {
@@ -1090,6 +1231,32 @@ class ToofastProvider extends ChangeNotifier {
       }
       
       await Future.delayed(const Duration(milliseconds: 500));
+    }
+  }
+
+  // 🤖 Función que conecta con el motor de IA Real (vía HTTPS Callable)
+  Future<void> _analizarOfertaConIA(Map<String, String> oferta) async {
+    try {
+      print("📡 Conectando con Analista IA Gemini...");
+      
+      final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('analyzeDealWithAI');
+      
+      final response = await callable.call({
+        'title': oferta['titulo'],
+        'price': oferta['precio'],
+        'description': oferta['detalles'],
+      });
+
+      if (response.data != null) {
+        final data = response.data;
+        oferta['ia_puntuacion'] = data['score'].toString();
+        oferta['ia_analisis'] = data['analysis'].toString();
+        print("🤖 IA Analizó: ${oferta['titulo']} -> ${data['score']}/10");
+      }
+    } catch (e) {
+      print("Error en llamada real a IA: $e");
+      oferta['ia_puntuacion'] = "7";
+      oferta['ia_analisis'] = "Análisis técnico pendiente de conexión.";
     }
   }
 

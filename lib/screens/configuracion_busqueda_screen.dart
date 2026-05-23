@@ -82,16 +82,6 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
     super.dispose();
   }
 
-  final Map<String, String> _nombresEsteticosCategorias = {
-    'vehiculos': '🚗  Vehículos y Carros',
-    'inmobiliaria': '🏠  Casas y Alquileres',
-    'tecnologia': '💻  Tecnología y PC',
-    'electrodomesticos': '📺  Electrodomésticos',
-    'ropa-y-accesorios': '👟  Ropa y Accesorios',
-    'familia': '🍼  Artículos para Familia',
-    'general': '📦  Compra-Venta General',
-    'hogar': '🛋️  Muebles y Hogar',
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -184,33 +174,40 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
                       ],
                     ),
                     const SizedBox(height: 20),
-                    const Text('Categoría', style: TextStyle(color: AppColors.textLightGrey, fontSize: 12)),
+                    const Text('Categoría y Filtro', style: TextStyle(color: AppColors.textLightGrey, fontSize: 12)),
                     const SizedBox(height: 8),
 
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.background, 
-                        borderRadius: BorderRadius.circular(8), 
-                        border: Border.all(color: AppColors.border)
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: toofastProvider.categoria,
-                          isExpanded: true,
-                          dropdownColor: AppColors.surface,
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
-                          items: toofastProvider.categoriasVisibles.map((String slugReal) {
-                            return DropdownMenuItem<String>(
-                              value: slugReal,
-                              child: Text(_nombresEsteticosCategorias[slugReal] ?? slugReal),
-                            );
-                          }).toList(),
-                          onChanged: (String? nuevoSlug) {
-                            if (nuevoSlug != null) {
-                              toofastProvider.cambiarCategoria(nuevoSlug);
-                            }
-                          },
+                    InkWell(
+                      onTap: () => Scaffold.of(context).openDrawer(),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.background, 
+                          borderRadius: BorderRadius.circular(8), 
+                          border: Border.all(color: AppColors.border)
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.category_outlined, color: AppColors.primary, size: 18),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    toofastProvider.nombresCategorias[toofastProvider.categoria] ?? toofastProvider.categoria,
+                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                  if (toofastProvider.subcategoria.isNotEmpty)
+                                    Text(
+                                      'Sub: ${toofastProvider.subcategoria.replaceAll('-', ' ')}',
+                                      style: const TextStyle(color: AppColors.textGrey, fontSize: 11),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.keyboard_arrow_right, color: AppColors.textGrey),
+                          ],
                         ),
                       ),
                     ),

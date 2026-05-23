@@ -33,86 +33,70 @@ class AppDrawer extends StatelessWidget {
             const SizedBox(height: 20),
             Expanded(
               child: ListView(
-                padding: EdgeInsets.zero,
+                padding: EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  Theme(
-                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      leading: const Icon(Icons.category_outlined, color: AppColors.primary),
-                      title: const Text(
-                        'Categorías',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      iconColor: AppColors.primary,
-                      collapsedIconColor: Colors.white70,
-                      childrenPadding: const EdgeInsets.only(left: 12),
-                      initiallyExpanded: false,
-                      children: [
-                        CheckboxListTile(
-                          title: const Text('✨  Seleccionar Todo (All)', 
-                            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                          value: provider.categoriasVisibles.length == provider.listaCategorias.length,
-                          activeColor: AppColors.primary,
-                          checkColor: Colors.white,
-                          onChanged: (bool? value) {
-                            // Acción: Si el usuario toca "All", forzamos el estado correspondiente.
-                            // Esto funciona tanto para FREE como para Premium.
-                            provider.toggleTodasCategorias(value == true);
-                          },
-                          controlAffinity: ListTileControlAffinity.trailing,
-                        ),
-                        const Divider(color: AppColors.border, indent: 16, endIndent: 16),
-                        
-                        ...provider.listaCategorias.map((slug) {
-                          final bool estaVisible = provider.categoriasVisibles.contains(slug);
-                          final Map<String, String> nombresEsteticos = {
-                            'vehiculos': '🚗  Vehículos y Carros',
-                            'inmobiliaria': '🏠  Casas y Alquileres',
-                            'tecnologia': '💻  Tecnología y PC',
-                            'electrodomesticos': '📺  Electrodomésticos',
-                            'ropa-y-accesorios': '👟  Ropa y Accesorios',
-                            'familia': '🍼  Artículos para Familia',
-                            'general': '📦  Compra-Venta General',
-                            'hogar': '🛋️  Muebles y Hogar',
-                          };
+                  ...provider.listaCategorias.map((catSlug) {
+                    final subcats = provider.subcategorias[catSlug] ?? [];
+                    final Map<String, String> iconos = {
+                      'vehiculos': '🚗',
+                      'inmobiliaria': '🏠',
+                      'tecnologia': '💻',
+                      'electrodomesticos': '📺',
+                      'ropa-y-accesorios': '👟',
+                      'familia': '🍼',
+                      'general': '📦',
+                      'hogar': '🛋️',
+                    };
 
-                          return CheckboxListTile(
-                            title: Text(nombresEsteticos[slug] ?? slug, 
-                              style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                            value: estaVisible,
-                            activeColor: AppColors.primary,
-                            checkColor: Colors.white,
-                            onChanged: (bool? value) {
-                              if (!provider.esPremium) {
-                                final bool estaEnEstadoAll = provider.categoriasVisibles.length == provider.listaCategorias.length;
-                                
-                                if (estaEnEstadoAll) {
-                                  // Caso 1: Estamos en "Ver Todo" y tocamos una categoría específica.
-                                  // Acción: Dejamos SOLO esa categoría activa.
-                                  provider.seleccionarSoloUnaCategoria(slug);
-                                } else {
-                                  // Estamos en estado "Ver Una".
-                                  if (estaVisible) {
-                                    // Caso 2: Intentamos desmarcar la única categoría que tenemos.
-                                    // Acción: No hacemos nada (siempre debe haber al menos una).
-                                  } else {
-                                    // Caso 3: Intentamos marcar una segunda categoría.
-                                    // Acción: Bloqueado (Función Premium).
-                                    AppUtils.mostrarPremiumDialog(context, 
-                                      "Para filtrar por múltiples categorías al mismo tiempo necesitas una membresía Premium. ¡Actualiza para desbloquear todo el potencial!");
-                                  }
-                                }
-                              } else {
-                                // Usuario Premium: Libertad total.
-                                provider.toggleVisibilidadCategoria(slug);
-                              }
+                    final String nombreBonito = provider.nombresCategorias[catSlug] ?? catSlug;
+                    final bool isSelectedMain = provider.categoria == catSlug && provider.subcategoria.isEmpty;
+
+                    return Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: Text(iconos[catSlug] ?? '📁', style: const TextStyle(fontSize: 20)),
+                        title: Text(
+                          nombreBonito,
+                          style: TextStyle(
+                            color: isSelectedMain ? AppColors.primary : Colors.white,
+                            fontWeight: isSelectedMain ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 15
+                          ),
+                        ),
+                        iconColor: AppColors.primary,
+                        collapsedIconColor: Colors.white70,
+                        children: [
+                          ListTile(
+                            title: Text('Ver todo en $nombreBonito', 
+                              style: TextStyle(color: isSelectedMain ? AppColors.primary : Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                            onTap: () {
+                              provider.cambiarCategoria(catSlug);
+                              Navigator.pop(context);
                             },
-                            controlAffinity: ListTileControlAffinity.trailing,
-                          );
-                        }).toList(),
-                      ],
-                    ),
-                  ),
+                            trailing: isSelectedMain ? const Icon(Icons.check, color: AppColors.primary, size: 18) : null,
+                          ),
+                          ...subcats.map((sub) {
+                            final bool isSelectedSub = provider.subcategoria == sub['slug'];
+                            return ListTile(
+                              contentPadding: const EdgeInsets.only(left: 48, right: 16),
+                              title: Text(sub['name'] ?? '', 
+                                style: TextStyle(
+                                  color: isSelectedSub ? AppColors.primary : Colors.white60, 
+                                  fontSize: 13
+                                )
+                              ),
+                              onTap: () {
+                                provider.cambiarCategoria(catSlug);
+                                provider.cambiarSubcategoria(sub['slug']!);
+                                Navigator.pop(context);
+                              },
+                              trailing: isSelectedSub ? const Icon(Icons.check, color: AppColors.primary, size: 18) : null,
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ],
               ),
             ),

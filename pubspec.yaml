@@ -108,20 +108,24 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 flutter_native_splash:
-  color: "#070E17"                # El fondo oscuro oficial de tu app
-  image: assets/splash.png        # La ruta de la imagen que guardaste
-
+  color: "#070E17"                # Fondo oscuro oficial
+  image: assets/splash.png        # Tu logo de 1152x1152
+  image_dark: assets/splash.png
+  
   android_12:
     color: "#070E17"
     image: assets/splash.png
+    icon_background_color: "#070E17"
 
-  web: false
+  fullscreen: true
+  android_gravity: center
+  ios_content_mode: center
 
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/logo_centro.png"
-  adaptive_icon_background: "#0B1824"
+  adaptive_icon_background: "#070E17"
   adaptive_icon_foreground: "assets/logo_centro.png"
   min_sdk_android: 23
 

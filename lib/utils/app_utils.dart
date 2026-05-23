@@ -15,6 +15,17 @@ class AppUtils {
     return '$minStr:$segStr min';
   }
 
+  static void mostrarSnackBar(BuildContext context, String mensaje, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje, style: const TextStyle(color: Colors.white)),
+        backgroundColor: isError ? AppColors.errorRed : AppColors.surface,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   static void mostrarPremiumDialog(BuildContext context, String mensaje) {
     showDialog(
       context: context,
@@ -33,15 +44,21 @@ class AppUtils {
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             onPressed: () {
               Navigator.pop(dialogContext); // Cierra el diálogo
+              
+              // 1. Intentamos encontrar el estado de navegación principal
               final navState = context.findAncestorStateOfType<MainNavigationScreenState>();
+              
               if (navState != null) {
-                navState.cambiarAPestana(4); // Salta a Perfil
-                
+                navState.cambiarAPestana(4); // Salta a la pestaña de Perfil
                 Future.delayed(const Duration(milliseconds: 300), () {
                   if (navState.mounted) {
                     mostrarBeneficiosPremium(navState.context);
                   }
                 });
+              } else {
+                // 2. Si no lo encuentra (porque estamos en una pantalla pusheada como Ajustes),
+                // simplemente mostramos los beneficios en el contexto actual.
+                mostrarBeneficiosPremium(context);
               }
             },
             child: const Text('Mejorar ahora', 

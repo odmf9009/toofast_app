@@ -52,6 +52,16 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 🧹 Sincronizar palabra clave (Limpiar si el provider la reseteó)
+    final provider = Provider.of<ToofastProvider>(context);
+    if (provider.palabraClave.isEmpty && _palabraClaveController.text.isNotEmpty) {
+      _palabraClaveController.clear();
+    }
+  }
+
   void _startAutoScroll() {
     _scrollTimer?.cancel();
     _scrollTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {

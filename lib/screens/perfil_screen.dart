@@ -11,6 +11,7 @@ import '../utils/app_utils.dart';
 import 'datos_usuario_screen.dart';
 import 'panel_admin_usuarios_screen.dart';
 import 'acerca_de_screen.dart';
+import 'ajustes_categorias_screen.dart';
 
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
@@ -22,9 +23,18 @@ class PerfilScreen extends StatelessWidget {
     return Scaffold(
       drawer: AppDrawer(provider: toofastProvider),
       appBar: AppBar(
-        title: const Center(child: Text('Mi Perfil', 
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
-        actions: const [Icon(Icons.edit_outlined, color: AppColors.textGrey), SizedBox(width: 16)],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: AppColors.textGrey),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => AjustesCategoriasScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 8)
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

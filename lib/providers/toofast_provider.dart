@@ -346,6 +346,15 @@ class ToofastProvider extends ChangeNotifier {
         
         print("📡 Firestore: Usuario es Premium: $_esPremium | Plan: $_planActual");
 
+        // 3. Cargar Favoritos del Usuario
+        if (data['favoritos'] != null) {
+          final List<dynamic> favs = data['favoritos'];
+          _ofertasGuardadas = favs.map((item) => Map<String, String>.from(item)).toList();
+          // Actualizar localmente también
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('favoritos', jsonEncode(_ofertasGuardadas));
+        }
+
         String? vencimientoStr = data['vencimientoPremium'];
         if (vencimientoStr != null && vencimientoStr.isNotEmpty) {
           _vencimientoPremium = DateTime.parse(vencimientoStr);
@@ -395,6 +404,7 @@ class ToofastProvider extends ChangeNotifier {
         'planActual': _planActual,
         'pruebaUsada': _pruebaUsada,
         'esAdmin': esAdmin, // Mantiene el estatus de admin si lo tiene
+        'favoritos': _ofertasGuardadas, // ⭐️ Guardar favoritos vinculados al usuario
         'ultima_conexion': FieldValue.serverTimestamp(),
         // Usamos set con merge para no sobrescribir fecha_registro si ya existe
       }, SetOptions(merge: true));
@@ -438,13 +448,13 @@ class ToofastProvider extends ChangeNotifier {
     _esPremium = false;
     _vencimientoPremium = null;
     _planActual = null;
+    _ofertasGuardadas = []; // 🧹 Limpiar favoritos al desloguearse
     
     // 🧹 Limpiar persistencia local
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('vencimientoPremium');
     await prefs.remove('planActual');
-    // Nota: mantenemos favoritos y filtros si queremos que persistan localmente, 
-    // pero las reglas Freemium se aplicarán al ser _esPremium = false.
+    await prefs.remove('favoritos'); // 🧹 Borrar favoritos locales del dispositivo
 
     notifyListeners();
   }
@@ -505,7 +515,13 @@ class ToofastProvider extends ChangeNotifier {
     
     final savedCats = prefs.getStringList('categoriasVisibles');
     if (savedCats != null) {
-      _categoriasVisibles = savedCats;
+      // 🛡️ FILTRO DE SEGURIDAD: Solo mantener categorías que existen actualmente en la app
+      _categoriasVisibles = savedCats.where((slug) => listaCategorias.contains(slug)).toList();
+      
+      // Si después de filtrar queda vacía (muy raro), resetear a la lista por defecto
+      if (_categoriasVisibles.isEmpty) {
+        _categoriasVisibles = List.from(listaCategorias);
+      }
     }
 
     // 🚨 SEGURIDAD: Asegurar que la categoría seleccionada esté en las visibles
@@ -586,17 +602,23 @@ class ToofastProvider extends ChangeNotifier {
     );
   }
 
-  void cambiarCategoria(String nuevaCategoria) {
+  void cambiarCategoria(String nuevaCategoria) async {
     _categoria = nuevaCategoria;
     _subcategoria = ''; // Resetear subcategoría al cambiar categoría
+    _palabraClave = ''; // ✨ Limpiar palabra clave al cambiar categoría
     notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('categoria', nuevaCategoria);
+    await prefs.setString('palabraClave', '');
   }
 
   void cambiarSubcategoria(String nuevaSub) async {
     _subcategoria = nuevaSub;
+    _palabraClave = ''; // ✨ Limpiar palabra clave al cambiar subcategoría
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('subcategoria_seleccionada', nuevaSub);
+    await prefs.setString('palabraClave', '');
   }
 
   void setNotificaciones(bool valor) async {
@@ -623,6 +645,7 @@ class ToofastProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('maxAutoGuardados', valor);
   }
+
 
   Future<void> activarPlanPremium(String plan) async {
     _esPremium = true;
@@ -1063,20 +1086,47 @@ class ToofastProvider extends ChangeNotifier {
 
           if (html != null && html.contains('id="__NEXT_DATA__"')) {
             try {
-              final String jsonString = html.split('id="__NEXT_DATA__"')[1].split('>')[1].split('</script>')[0].trim();
+              // 🧪 EXTRACCIÓN ROBUSTA DE JSON
+              String jsonString = "";
+              if (html.contains('id="__NEXT_DATA__"')) {
+                // Intentamos primero con un separador más corto para evitar fallos por espacios
+                jsonString = html.split('id="__NEXT_DATA__"')[1].split('>')[1].split('</script')[0].trim();
+                
+                // Limpieza extra por si quedan restos de etiquetas
+                if (jsonString.contains('</script')) {
+                  jsonString = jsonString.split('</script')[0].trim();
+                }
+              }
+
+              if (jsonString.isEmpty) throw Exception("No se pudo extraer el JSON");
+
               final Map<String, dynamic> datosEstructurados = jsonDecode(jsonString);
-              final apolloState = datosEstructurados['pageProps']?['__APOLLO_STATE__'] ?? 
+              final Map<String, dynamic> apolloState = datosEstructurados['pageProps']?['__APOLLO_STATE__'] ?? 
                                  datosEstructurados['props']?['pageProps']?['__APOLLO_STATE__'] ?? {};
 
               List<dynamic> itemsParaProcesar = [];
-              final rootQuery = apolloState['ROOT_QUERY'] ?? {};
-              String searchKey = rootQuery.keys.firstWhere((k) => k.startsWith('search'), orElse: () => "");
-              if (searchKey.isNotEmpty) itemsParaProcesar = rootQuery[searchKey]['results'] ?? [];
+              final Map<String, dynamic> rootQuery = Map<String, dynamic>.from(apolloState['ROOT_QUERY'] ?? {});
+              
+              // 🔍 Buscar la llave de búsqueda de forma robusta
+              String searchKey = "";
+              for (var key in rootQuery.keys) {
+                if (key.toString().startsWith('search')) {
+                  searchKey = key.toString();
+                  break;
+                }
+              }
 
+              if (searchKey.isNotEmpty) {
+                itemsParaProcesar = rootQuery[searchKey]['results'] ?? [];
+              }
+
+              // Si falla la lista ordenada, buscamos manualmente
               if (itemsParaProcesar.isEmpty) {
-                itemsParaProcesar = apolloState.values.where((v) => 
-                  v is Map && v.containsKey('title') && v.containsKey('price')
-                ).toList();
+                apolloState.forEach((key, val) {
+                  if (val is Map && val.containsKey('title') && val.containsKey('price')) {
+                    itemsParaProcesar.add(val);
+                  }
+                });
               }
 
               int min = int.tryParse(_precioDesde) ?? 0;
@@ -1123,8 +1173,6 @@ class ToofastProvider extends ChangeNotifier {
                     'enlace': "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink",
                     'imagen': '',
                     'detalles': descripcion,
-                    'ia_puntuacion': '',
-                    'ia_analisis': '',
                   });
                 }
               }
@@ -1218,12 +1266,6 @@ class ToofastProvider extends ChangeNotifier {
           }
           
           print("✅ [OK] ${ofertas[i]['titulo']} -> WhatsApp: ${ofertas[i]['whatsapp'] ?? 'N/A'}, Tel: ${ofertas[i]['telefono'] ?? 'N/A'}");
-          
-          // G. 🤖 ANÁLISIS DE IA (Solo para Usuarios Premium)
-          if (_esPremium && ofertas[i]['ia_puntuacion']!.isEmpty) {
-            await _analizarOfertaConIA(ofertas[i]);
-          }
-
           notifyListeners(); 
         }
       } catch (e) {
@@ -1291,6 +1333,11 @@ class ToofastProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('favoritos', jsonEncode(_ofertasGuardadas));
+    
+    // ☁️ Sincronizar con la nube si el usuario está logueado
+    if (estaLogueado) {
+      _actualizarUsuarioEnFirestore();
+    }
   }
 
   void limpiarTodosFavoritos() async {

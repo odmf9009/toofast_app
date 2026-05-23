@@ -13,9 +13,11 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 
-class ToofastProvider extends ChangeNotifier {
+class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _isEscaneando = false;
   bool get isEscaneando => _isEscaneando;
+  
+  bool _appEnPrimerPlano = true; // 🔋 Para ahorro de energía
 
   // 🔑 Variables de Autenticación
   final GoogleSignIn _googleSignIn = GoogleSignIn();
@@ -262,6 +264,7 @@ class ToofastProvider extends ChangeNotifier {
   }
 
   ToofastProvider() {
+    WidgetsBinding.instance.addObserver(this); // 🔋 Registrar observador de energía
     _cargarDatosLocales();
     _inicializarNotificaciones();
     _revisarLoginSilencioso();
@@ -272,6 +275,17 @@ class ToofastProvider extends ChangeNotifier {
         _actualizarBannersGlobalesDesdeApp();
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appEnPrimerPlano = (state == AppLifecycleState.resumed);
+    print("🔋 Estado de energía: ${_appEnPrimerPlano ? 'Alto Rendimiento' : 'Modo Ahorro (Background)'}");
+    
+    // Si volvemos al primer plano y el timer estaba pausado, podemos forzar un refresh si es necesario
+    if (_appEnPrimerPlano && _isEscaneando) {
+      // Opcional: Ejecutar un escaneo inmediato al volver
+    }
   }
 
   void _escucharEstadisticasGlobales() {
@@ -836,12 +850,20 @@ class ToofastProvider extends ChangeNotifier {
 
     _idsNotificados.clear();
     _ejecutarScrapingReal();
+    _actualizarNotificacionFija(); // 🛰️ Mostrar notificación fija al iniciar
 
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      // 🛰️ Asegurar que la notificación se mantenga (algunos Android la ocultan si no se refresca)
+      if (_cantidadEscaneos % 30 == 0 && _proximaRevisionEnSegundos == 5) {
+         _actualizarNotificacionFija();
+      }
+
       if (_proximaRevisionEnSegundos > 0) {
+        // ⚡️ OPTIMIZACIÓN: Si la app está en background, el contador baja igual para disparar la notificación,
+        // pero podemos ahorrar recursos de UI al no notificar a los listeners si no es necesario.
         _proximaRevisionEnSegundos--;
-        notifyListeners();
+        if (_appEnPrimerPlano) notifyListeners();
       } else {
         _cantidadEscaneos++;
         _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
@@ -1028,17 +1050,20 @@ class ToofastProvider extends ChangeNotifier {
         
         // 💎 Lógica Premium: Auto-guardar
         if (_esPremium && _autoGuardarAlertas) {
+          bool huboCambios = false;
           int guardadosEnEsteCiclo = 0;
           for (var chollo in nuevosParaNotificar) {
             if (guardadosEnEsteCiclo >= _maxAutoGuardados) break;
             if (!_ofertasGuardadas.any((fav) => fav['id'] == chollo['id'])) {
               _ofertasGuardadas.add(chollo);
               guardadosEnEsteCiclo++;
+              huboCambios = true;
             }
           }
-          if (guardadosEnEsteCiclo > 0) {
+          if (huboCambios) {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('favoritos', jsonEncode(_ofertasGuardadas));
+            if (estaLogueado) _actualizarUsuarioEnFirestore();
           }
         }
 
@@ -1046,6 +1071,8 @@ class ToofastProvider extends ChangeNotifier {
           _idsNotificados.add(chollo['id']!);
         }
       }
+      
+      // ⚡️ ACTUALIZACIÓN FINAL: Notificamos una sola vez al terminar de procesar todas las páginas
       notifyListeners();
       _enriquecerDatosEnSegundoPlano(resultadosAcumulados);
     }
@@ -1266,13 +1293,17 @@ class ToofastProvider extends ChangeNotifier {
           }
           
           print("✅ [OK] ${ofertas[i]['titulo']} -> WhatsApp: ${ofertas[i]['whatsapp'] ?? 'N/A'}, Tel: ${ofertas[i]['telefono'] ?? 'N/A'}");
-          notifyListeners(); 
         }
       } catch (e) {
         print("Error enriqueciendo anuncio ${ofertas[i]['id']}: $e");
       }
       
-      await Future.delayed(const Duration(milliseconds: 500));
+      // ⚡️ OPTIMIZACIÓN: Solo notificamos cada 3 anuncios procesados para reducir rebuilds de la lista
+      if (i % 3 == 0 || i == ofertas.length - 1) {
+        notifyListeners(); 
+      }
+      
+      await Future.delayed(const Duration(milliseconds: 300)); // Un poco más rápido pero seguro
     }
   }
 
@@ -1352,9 +1383,41 @@ class ToofastProvider extends ChangeNotifier {
   void detenerEscaneo() {
     _isEscaneando = false;
     _timer?.cancel();
+    _notificationsPlugin.cancel(888); // 🧹 Quitar notificación fija al detener
     notifyListeners();
   }
 
+  Future<void> _actualizarNotificacionFija() async {
+    if (!_isEscaneando) return;
+
+    const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      'toofast_status_persistent_v3', // 🚀 Canal de alta prioridad bloqueado
+      'Estado del Radar (Activo)',
+      channelDescription: 'Mantiene el radar visible y bloqueado mientras escanea',
+      importance: Importance.max, // Máxima importancia para evitar que se descarte
+      priority: Priority.high,
+      ongoing: true, // 🔒 Bloqueo de deslizamiento
+      autoCancel: false,
+      silent: true, // Mantiene el bloqueo pero sin hacer ruido molesto
+      showWhen: true,
+      onlyAlertOnce: true, // Evita que la notificación parpadee al actualizarse
+      category: AndroidNotificationCategory.service,
+      icon: '@mipmap/ic_launcher',
+    );
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidPlatformChannelSpecifics);
+
+    await _notificationsPlugin.show(
+      888, // ID fijo para el estado
+      '🛰️ Radar TooFast Activo', 
+      'Escaneando ${_subcategoria.isNotEmpty ? _subcategoria : _categoria}...', 
+      platformChannelSpecifics
+    );
+  }
+
   @override
-  void dispose() { _timer?.cancel(); super.dispose(); }
+  void dispose() { 
+    WidgetsBinding.instance.removeObserver(this); // 🧹 Limpiar observador
+    _timer?.cancel(); 
+    super.dispose(); 
+  }
 }

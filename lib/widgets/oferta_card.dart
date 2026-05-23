@@ -67,19 +67,19 @@ class OfertaCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(item['titulo']!, 
+                        child: Text(item['titulo'] ?? 'Sin título', 
                           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white), 
                           maxLines: 2, 
                           overflow: TextOverflow.ellipsis
                         )
                       ),
                       const SizedBox(width: 10),
-                      Text('\$${item['precio']}', 
+                      Text('\$${item['precio'] ?? '0'}', 
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.secondary)),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(item['detalles']!, 
+                  Text(item['detalles'] ?? '',
                     style: const TextStyle(fontSize: 12, color: AppColors.textLightGrey, height: 1.4), 
                     maxLines: 2, 
                     overflow: TextOverflow.ellipsis

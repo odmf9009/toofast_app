@@ -5,6 +5,7 @@ import '../providers/toofast_provider.dart';
 import '../themes/app_colors.dart';
 import '../utils/app_utils.dart';
 import 'faq_screen.dart';
+import 'premium_coming_soon_screen.dart';
 
 class AjustesCategoriasScreen extends StatelessWidget {
   const AjustesCategoriasScreen({super.key});
@@ -52,10 +53,13 @@ class AjustesCategoriasScreen extends StatelessWidget {
                       activeColor: AppColors.primary,
                       checkColor: Colors.white,
                       onChanged: (bool? value) {
+                        // TEMPORARILY DISABLED - COMING SOON
+                        /*
                         if (!provider.esPremium) {
                           AppUtils.mostrarPremiumDialog(context, "La personalización masiva es una función exclusiva para usuarios Premium.");
                           return;
                         }
+                        */
                         provider.toggleTodasCategorias(value == true);
                       },
                     ),
@@ -72,10 +76,13 @@ class AjustesCategoriasScreen extends StatelessWidget {
                         subtitle: Text(estaVisible ? 'Visible en el menú' : 'Oculta', 
                           style: TextStyle(color: estaVisible ? AppColors.primary.withOpacity(0.7) : AppColors.textGrey, fontSize: 12)),
                         onChanged: (bool? value) {
+                          // TEMPORARILY DISABLED - COMING SOON
+                          /*
                           if (!provider.esPremium) {
                             AppUtils.mostrarPremiumDialog(context, "La personalización del menú lateral es una función exclusiva para usuarios Premium.");
                             return;
                           }
+                          */
                           provider.toggleVisibilidadCategoria(slug);
                         },
                       );

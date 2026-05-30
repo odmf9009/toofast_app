@@ -1,0 +1,268 @@
+:root {
+    --primary: #FF6B00;
+    --background: #070E17;
+    --surface: #0F1926;
+    --text-grey: #6B7A90;
+    --border: #1E2D42;
+    --white: #FFFFFF;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background);
+    color: var(--white);
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+header {
+    padding: 30px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+nav {
+    display: flex;
+    justify-content: center;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.nav-logo {
+    width: 45px;
+}
+
+.brand-name {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -1px;
+}
+
+/* Hero */
+.hero {
+    padding: 80px 0 60px;
+    text-align: center;
+}
+
+.hero-logo {
+    width: 140px;
+    margin-bottom: 40px;
+}
+
+h1 {
+    font-size: 52px;
+    font-weight: 900;
+    margin-bottom: 24px;
+    line-height: 1.1;
+}
+
+.hero-description {
+    font-size: 18px;
+    color: var(--text-grey);
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+/* Mockups */
+.mockups {
+    padding: 60px 0;
+}
+
+.mockup-grid {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+}
+
+.mockup-item {
+    text-align: center;
+}
+
+.phone-frame {
+    background: #000;
+    padding: 10px;
+    border-radius: 40px;
+    border: 6px solid var(--border);
+    margin-bottom: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+}
+
+.phone-frame img {
+    width: 250px;
+    border-radius: 30px;
+    display: block;
+}
+
+.mockup-item h3 {
+    color: var(--primary);
+    font-size: 20px;
+}
+
+/* Memberships */
+.memberships {
+    padding: 80px 0;
+    background: #09131f;
+}
+
+.section-title {
+    text-align: center;
+    font-size: 36px;
+    margin-bottom: 60px;
+}
+
+.pricing-grid {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.price-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 40px;
+    width: 360px;
+    position: relative;
+    transition: transform 0.3s;
+}
+
+.price-card:hover {
+    transform: translateY(-10px);
+}
+
+.price-card.premium {
+    border-color: var(--primary);
+    box-shadow: 0 10px 40px rgba(255, 107, 0, 0.15);
+}
+
+.popular-tag {
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary);
+    color: white;
+    padding: 5px 20px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.card-header h3 {
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.price {
+    font-size: 44px;
+    font-weight: 900;
+    margin-bottom: 30px;
+}
+
+.price span {
+    font-size: 16px;
+    color: var(--text-grey);
+}
+
+.features {
+    list-style: none;
+}
+
+.features li {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+}
+
+.features li i {
+    color: var(--primary);
+    font-size: 18px;
+}
+
+/* Download Section */
+.download {
+    padding: 100px 0;
+    text-align: center;
+}
+
+.download h2 {
+    font-size: 40px;
+    margin-bottom: 50px;
+}
+
+.store-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.store-btn {
+    background: #000;
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    padding: 15px 35px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    text-decoration: none;
+    color: white;
+    transition: all 0.3s;
+}
+
+.store-btn:hover {
+    border-color: var(--primary);
+    background: #050505;
+    transform: scale(1.05);
+}
+
+.store-btn i {
+    font-size: 36px;
+}
+
+.btn-text {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+}
+
+.btn-text .small {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.btn-text .big {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+footer {
+    padding: 50px 0;
+    text-align: center;
+    color: var(--text-grey);
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+}
+
+@media (max-width: 768px) {
+    h1 { font-size: 36px; }
+    .store-buttons { flex-direction: column; align-items: center; }
+}

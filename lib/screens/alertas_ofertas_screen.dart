@@ -55,11 +55,13 @@ class AlertasOfertasScreen extends StatelessWidget {
               )
             : ListView.builder(
           padding: const EdgeInsets.all(24.0),
+          cacheExtent: 500, // ⚡️ OPTIMIZACIÓN: Precarga anuncios fuera de pantalla para scroll fluido
           itemCount: ofertas.length,
           itemBuilder: (context, index) {
             final item = ofertas[index];
             final bool guardado = toofastProvider.esFavorito(item['id']!);
-            final bool isLocked = !toofastProvider.esPremium && index >= 5;
+            // TEMPORARILY DISABLED - COMING SOON: isLocked forced to false
+            final bool isLocked = false;
 
             return Stack(
               children: [

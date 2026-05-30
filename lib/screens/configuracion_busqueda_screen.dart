@@ -373,11 +373,12 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
                               Switch(
                                 value: toofastProvider.autoGuardarAlertas,
                                 activeColor: AppColors.primary,
-                                onChanged: toofastProvider.esPremium ? (val) => toofastProvider.setAutoGuardar(val) : null,
+                                // TEMPORARILY DISABLED - COMING SOON: Enabled for all
+                                onChanged: (val) => toofastProvider.setAutoGuardar(val),
                               ),
                             ],
                           ),
-                          if (toofastProvider.autoGuardarAlertas && toofastProvider.esPremium) ...[
+                          if (toofastProvider.autoGuardarAlertas) ...[
                             const Divider(color: AppColors.border, height: 20),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -391,6 +392,7 @@ class _ConfiguracionBusquedaScreenState extends State<ConfiguracionBusquedaScree
                                     divisions: 9,
                                     activeColor: AppColors.primary,
                                     inactiveColor: AppColors.border,
+                                    // TEMPORARILY DISABLED - COMING SOON: Enabled for all
                                     onChanged: (val) => toofastProvider.setMaxAutoGuardados(val.toInt()),
                                   ),
                                 ),

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TooFast - El Radar de Ofertas en Tiempo Real</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome para los iconos de las tiendas -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <div class="logo-container">
+                    <img src="logo_centro.png" alt="TooFast Logo" class="nav-logo">
+                    <span class="brand-name">TooFast</span>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <img src="logo_centro.png" alt="TooFast Logo" class="hero-logo">
+                <h1>Llega antes que nadie a las mejores ofertas</h1>
+                <p class="hero-description">
+                    TooFast es una plataforma inteligente diseñada para rastrear anuncios en tiempo real.
+                    Olvídate de refrescar la página manualmente; nuestro radar lo hace por ti y te avisa al instante.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="mockups">
+        <div class="container">
+            <div class="mockup-grid">
+                <div class="mockup-item">
+                    <div class="phone-frame">
+                        <!-- Pon tu captura de pantalla como radar.png en la carpeta web_landing -->
+                        <img src="radar.png" onerror="this.src='logo_centro.png'" alt="Radar Screen">
+                    </div>
+                    <h3>Radar en Vivo</h3>
+                </div>
+                <div class="mockup-item">
+                    <div class="phone-frame">
+                        <img src="alertas.png" onerror="this.src='logo_centro.png'" alt="Alerts Screen">
+                    </div>
+                    <h3>Alertas al Instante</h3>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="memberships">
+        <div class="container">
+            <h2 class="section-title">Elige tu potencia</h2>
+            <div class="pricing-grid">
+                <!-- Plan Free -->
+                <div class="price-card">
+                    <div class="card-header">
+                        <h3>Versión FREE</h3>
+                        <p class="price">Gratis</p>
+                    </div>
+                    <ul class="features">
+                        <li><i class="fas fa-check"></i> Escaneo cada 1 hora</li>
+                        <li><i class="fas fa-check"></i> Filtros de precio básicos</li>
+                        <li><i class="fas fa-check"></i> Palabra clave simple</li>
+                        <li><i class="fas fa-check"></i> 1 Anuncio guardado</li>
+                    </ul>
+                </div>
+
+                <!-- Plan Premium -->
+                <div class="price-card premium">
+                    <div class="popular-tag">RECOMENDADO</div>
+                    <div class="card-header">
+                        <h3>Versión PREMIUM</h3>
+                        <p class="price">Desde $15<span>/mes</span></p>
+                    </div>
+                    <ul class="features">
+                        <li><i class="fas fa-bolt"></i> Escaneo cada 5 minutos</li>
+                        <li><i class="fas fa-bolt"></i> Búsqueda exhaustiva (5 págs)</li>
+                        <li><i class="fas fa-bolt"></i> Auto-guardado de alertas</li>
+                        <li><i class="fas fa-bolt"></i> Filtro por categorías único</li>
+                        <li><i class="fas fa-bolt"></i> Sin anuncios destacados</li>
+                        <li><i class="fas fa-bolt"></i> Favoritos ilimitados</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="download">
+        <div class="container">
+            <h2>Descarga TooFast hoy mismo</h2>
+            <div class="store-buttons">
+                <a href="#" class="store-btn">
+                    <i class="fab fa-apple"></i>
+                    <div class="btn-text">
+                        <span class="small">Download on the</span>
+                        <span class="big">App Store</span>
+                    </div>
+                </a>
+                <a href="#" class="store-btn">
+                    <i class="fab fa-google-play"></i>
+                    <div class="btn-text">
+                        <span class="small">Get it on</span>
+                        <span class="big">Google Play</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 TooFast. Todos los derechos reservados.</p>
+            <p>Soporte: support@gettoofast.com</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -11,6 +11,7 @@ import '../utils/app_utils.dart';
 import 'datos_usuario_screen.dart';
 import 'panel_admin_usuarios_screen.dart';
 import 'acerca_de_screen.dart';
+import 'premium_coming_soon_screen.dart';
 import 'ajustes_categorias_screen.dart';
 
 class PerfilScreen extends StatelessWidget {
@@ -136,7 +137,13 @@ class PerfilScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             InkWell(
-              onTap: () => AppUtils.mostrarBeneficiosPremium(context),
+              onTap: () {
+                // TEMPORARILY DISABLED - COMING SOON
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PremiumComingSoonScreen()),
+                );
+              },
               borderRadius: BorderRadius.circular(20),
               child: Container(
                 padding: const EdgeInsets.all(20),

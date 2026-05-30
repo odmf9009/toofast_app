@@ -40,6 +40,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   // 💎 Estado de Suscripción (TEMPORARILY DISABLED - COMING SOON: Forced to true for all users)
   bool _esPremium = true; 
   bool get esPremium => true; // Forced getter
+  
   DateTime? _vencimientoPremium;
   DateTime? get vencimientoPremium => _vencimientoPremium;
   String? _planActual;
@@ -199,7 +200,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         _fotoPerfilUrl = data['foto'];
-        _esPremium = data['esPremium'] == true;
+        // Note: _esPremium is forced to true globally, but we keep sync for future use
         _planActual = data['planActual'];
         _soyAdminEnFirestore = data['esAdmin'] == true;
         _pruebaUsada = data['pruebaUsada'] == true;
@@ -210,15 +211,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         String? vencimientoStr = data['vencimientoPremium'];
         if (vencimientoStr != null && vencimientoStr.isNotEmpty) {
           _vencimientoPremium = DateTime.parse(vencimientoStr);
-          if (_usuario!.email != 'krvillamil1990@gmail.com' && _vencimientoPremium!.isBefore(DateTime.now())) {
-            _esPremium = false;
-          } else {
-            _verificarExpiracionProxima();
-          }
         }
-      }
-      if (_usuario!.email == 'krvillamil1990@gmail.com') {
-        await activarPlanPremium('6 Meses + 20 Días');
       }
       await _actualizarUsuarioEnFirestore();
     } catch (e) {
@@ -234,7 +227,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         'nombre': _usuario!.displayName,
         'email': _usuario!.email,
         'foto': _usuario!.photoUrl,
-        'esPremium': _esPremium,
+        'esPremium': true, // Forced for now
         'vencimientoPremium': _vencimientoPremium?.toIso8601String(),
         'planActual': _planActual,
         'pruebaUsada': _pruebaUsada,
@@ -262,7 +255,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     await _auth.signOut();
     _usuario = null;
     _fotoPerfilUrl = null;
-    _esPremium = false;
     _vencimientoPremium = null;
     _planActual = null;
     _ofertasGuardadas = [];
@@ -382,7 +374,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void setAutoGuardar(bool valor) async {
-    if (!_esPremium) return;
     _autoGuardarAlertas = valor;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
@@ -390,7 +381,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void setMaxAutoGuardados(int valor) async {
-    if (!_esPremium) return;
     _maxAutoGuardados = valor.clamp(1, 10);
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
@@ -398,7 +388,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> activarPlanPremium(String plan) async {
-    _esPremium = true;
     _planActual = plan;
     DateTime ahora = DateTime.now();
     if (plan == '7 Días') _vencimientoPremium = ahora.add(const Duration(days: 7));
@@ -412,7 +401,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<int> activarPruebaGratuita() async {
-    if (_usuario == null || _pruebaUsada || _esPremium) return 0;
+    if (_usuario == null || _pruebaUsada) return 0;
     try {
       final deviceInfo = DeviceInfoPlugin();
       String? deviceId;
@@ -421,7 +410,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (deviceId == null) return -2;
       final deviceDoc = await _db.getDispositivoPrueba(deviceId);
       if (deviceDoc.exists) return -1;
-      _esPremium = true;
       _pruebaUsada = true;
       _planActual = 'Prueba 3 Días';
       _vencimientoPremium = DateTime.now().add(const Duration(days: 3));
@@ -474,17 +462,13 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String frecuenciaSeleccionada,
   }) async {
     _isEscaneando = true;
-    if (!_esPremium) {
-      _precioDesde = desde;
-      _precioHasta = hasta;
-      _palabraClave = palabraClave.trim().split(' ').first;
-      _frecuencia = '1hora';
-    } else {
-      _precioDesde = desde;
-      _precioHasta = hasta;
-      _palabraClave = palabraClave.trim();
-      _frecuencia = frecuenciaSeleccionada;
-    }
+    
+    // Always use full filters since Premium is forced to true
+    _precioDesde = desde;
+    _precioHasta = hasta;
+    _palabraClave = palabraClave.trim();
+    _frecuencia = frecuenciaSeleccionada;
+    
     _categoria = categoria;
     _cantidadEscaneos++;
     _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
@@ -523,6 +507,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
           if (!_idsNotificados.contains(o['id'])) nuevos.add(o);
         }
       }
+      // Meta: 10 with keyword, 20 without
       if (acumulados.length >= (_palabraClave.isNotEmpty ? 10 : 20)) break;
     }
 
@@ -530,7 +515,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
       _ofertasEncontradas = acumulados;
       if (nuevos.isNotEmpty && _isEscaneando) {
         _dispararNotificacion(nuevos.length);
-        if (_esPremium && _autoGuardarAlertas) {
+        if (_autoGuardarAlertas) { // Enabled for all temporarily
           int count = 0;
           for (var n in nuevos) {
             if (count >= _maxAutoGuardados) break;
@@ -565,54 +550,69 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
           done = true;
           final html = await controller.getHtml();
           List<Map<String, String>> res = [];
-          if (html != null && html.contains('id="__NEXT_DATA__"')) {
+          if (html != null) {
             try {
-              String json = html.split('id="__NEXT_DATA__"')[1].split('>')[1].split('</script')[0].trim();
-              final data = jsonDecode(json);
-              final apollo = data['pageProps']?['__APOLLO_STATE__'] ?? data['props']?['pageProps']?['__APOLLO_STATE__'] ?? {};
-              List<dynamic> items = [];
-              final Map<String, dynamic> root = Map<String, dynamic>.from(apollo['ROOT_QUERY'] ?? {});
-              String searchKey = "";
-              for (var key in root.keys) { if (key.toString().startsWith('search')) { searchKey = key.toString(); break; } }
-
-              if (searchKey.isNotEmpty) items = root[searchKey]['results'] ?? [];
-              if (items.isEmpty) apollo.forEach((k, v) { if (v is Map && v.containsKey('title') && v.containsKey('price')) items.add(v); });
+              // 🧪 EXTRACCIÓN ROBUSTA POR REGEX
+              final regexData = RegExp(r'<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>');
+              final match = regexData.firstMatch(html);
               
-              int min = int.tryParse(_precioDesde) ?? 0;
-              int max = int.tryParse(_precioHasta) ?? 999999;
+              if (match != null) {
+                String json = match.group(1)!.trim();
+                final data = jsonDecode(json);
+                final apollo = data['pageProps']?['__APOLLO_STATE__'] ?? data['props']?['pageProps']?['__APOLLO_STATE__'] ?? {};
+                
+                List<dynamic> items = [];
+                final Map<String, dynamic> root = Map<String, dynamic>.from(apollo['ROOT_QUERY'] ?? {});
+                String searchKey = "";
+                for (var key in root.keys) { if (key.toString().startsWith('search')) { searchKey = key.toString(); break; } }
 
-              for (var i in items) {
-                var v = (i is Map && i.containsKey('__ref')) ? apollo[i['__ref']] : i;
-                if (v is Map && v.containsKey('price') && v.containsKey('title')) {
-                  if (v['isFeatured'] == true || v['isPremium'] == true) continue;
-                  
-                  String titulo = v['title']?.toString() ?? '';
-                  String descripcion = v['description']?.toString() ?? '';
-                  String priceRaw = v['price']?.toString() ?? '0';
-                  String priceClean = priceRaw.replaceAll(',', '.').replaceAll(RegExp(r'[^0-9.]'), '');
-                  double pDouble = double.tryParse(priceClean) ?? 0;
-                  int p = pDouble.floor();
+                if (searchKey.isNotEmpty) items = root[searchKey]['results'] ?? [];
+                if (items.isEmpty) {
+                   apollo.forEach((k, v) { 
+                     if (v is Map && v.containsKey('title') && v.containsKey('price')) items.add(v); 
+                   });
+                }
+                
+                int min = int.tryParse(_precioDesde) ?? 0;
+                int max = int.tryParse(_precioHasta) ?? 999999;
 
-                  if (p < min || p > max) continue;
+                for (var i in items) {
+                  var v = (i is Map && i.containsKey('__ref')) ? apollo[i['__ref']] : i;
+                  if (v is Map && v.containsKey('price') && v.containsKey('title')) {
+                    if (v['isFeatured'] == true || v['isPremium'] == true) continue;
+                    
+                    String titulo = v['title']?.toString() ?? '';
+                    String descripcion = v['description']?.toString() ?? '';
+                    
+                    // 💰 MANEJO DE PRECIO
+                    String pRaw = v['price']?.toString() ?? '0';
+                    String priceClean = pRaw.replaceAll(',', '.').replaceAll(RegExp(r'[^0-9.]'), '');
+                    double pDouble = double.tryParse(priceClean) ?? 0;
+                    int p = pDouble.floor();
 
-                  if (_palabraClave.isNotEmpty) {
-                    String keyword = _palabraClave.toLowerCase().trim();
-                    if (!titulo.toLowerCase().contains(keyword) && !descripcion.toLowerCase().contains(keyword)) continue;
+                    // 🚫 FILTRO DE PRECIO: Omitir anuncios con precio 0, 1 o fuera de rango
+                    if (p <= 1 || p < min || p > max) continue;
+
+                    if (_palabraClave.isNotEmpty) {
+                      String keyword = _palabraClave.toLowerCase().trim();
+                      if (!titulo.toLowerCase().contains(keyword) && !descripcion.toLowerCase().contains(keyword)) continue;
+                    }
+
+                    String permalink = v['permalink']?.toString() ?? '';
+                    res.add({
+                      'id': v['id']?.toString() ?? '',
+                      'titulo': titulo,
+                      'precio': p.toString(),
+                      'tiempo': 'Reciente',
+                      'ubicacion': 'Cuba',
+                      'enlace': "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink",
+                      'imagen': '',
+                      'detalles': descripcion,
+                    });
                   }
-
-                  res.add({
-                    'id': v['id']?.toString() ?? '',
-                    'titulo': titulo,
-                    'precio': p.toString(),
-                    'tiempo': 'Reciente',
-                    'ubicacion': 'Cuba',
-                    'enlace': "https://www.revolico.com${v['permalink']}",
-                    'imagen': '',
-                    'detalles': descripcion,
-                  });
                 }
               }
-            } catch (e) {}
+            } catch (e) { print("Error parseando página $pageNum: $e"); }
           }
           completer.complete(res);
           await webView?.dispose();
@@ -632,8 +632,19 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
           String h = resp.body;
           var mImg = RegExp(r'<meta property="og:image" content="([^"]+)"').firstMatch(h);
           if (mImg != null) ofertas[i]['imagen'] = mImg.group(1)!;
-          var mLoc = RegExp(r'<span>([^<]+,\s+[^<]+)</span>').firstMatch(h);
-          if (mLoc != null) ofertas[i]['ubicacion'] = mLoc.group(1)!;
+          
+          // 📍 EXTRACCIÓN DE LOCALIDAD MEJORADA (Municipio, Provincia)
+          // Intento 1: Por data-cy (más preciso)
+          var mLoc1 = RegExp(r'data-cy="adLocation"[^>]*>([^<]+)</p>').firstMatch(h);
+          // Intento 2: Por span con formato "Texto, Texto"
+          var mLoc2 = RegExp(r'<span>([^<]+,\s+[^<]+)</span>').firstMatch(h);
+          
+          if (mLoc1 != null) {
+            ofertas[i]['ubicacion'] = mLoc1.group(1)!.trim();
+          } else if (mLoc2 != null) {
+            ofertas[i]['ubicacion'] = mLoc2.group(1)!.trim();
+          }
+
           var mWA = RegExp(r'https://wa\.me/(\d+)').firstMatch(h);
           if (mWA != null) ofertas[i]['whatsapp'] = mWA.group(1)!;
           var mTel = RegExp(r'href="tel:(\+?\d+)"').firstMatch(h);
@@ -692,7 +703,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_ofertasGuardadas.any((o) => o['id'] == id)) {
       _ofertasGuardadas.removeWhere((o) => o['id'] == id);
     } else {
-      if (!_esPremium && _ofertasGuardadas.isNotEmpty) return;
+      // Free limit removed temporarily
       _ofertasGuardadas.add(oferta);
     }
     notifyListeners();
@@ -733,21 +744,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (!_notificacionesHabilitadas) return;
     const details = AndroidNotificationDetails('toofast_radar_channel', 'Alertas de Radar', importance: Importance.max, priority: Priority.high);
     await _notificationsPlugin.show(0, '⚡ ¡Filtro Activado!', 'Toofast cazó $count oferta(s).', const NotificationDetails(android: details));
-  }
-
-  void _verificarExpiracionProxima() async {
-    if (!_esPremium || _vencimientoPremium == null) return;
-    final diff = _vencimientoPremium!.difference(DateTime.now());
-    if (diff.inHours >= 0 && diff.inHours <= 24) {
-      final prefs = await SharedPreferences.getInstance();
-      final last = prefs.getString('ultimoAvisoExpiracion');
-      final hoy = DateTime.now().toIso8601String().split('T')[0];
-      if (last != hoy) {
-        const details = AndroidNotificationDetails('toofast_expiration_channel', 'Aviso de Expiración', importance: Importance.max, priority: Priority.high);
-        await _notificationsPlugin.show(999, '💎 Membresía por vencer', 'Tu membresía expira pronto.', const NotificationDetails(android: details));
-        await prefs.setString('ultimoAvisoExpiracion', hoy);
-      }
-    }
   }
 
   @override

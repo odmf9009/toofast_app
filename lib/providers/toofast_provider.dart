@@ -20,13 +20,11 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _isEscaneando = false;
   bool get isEscaneando => _isEscaneando;
   
-  bool _appEnPrimerPlano = true; // 🔋 Para ahorro de energía
+  bool _appEnPrimerPlano = true;
 
-  // 🔑 Servicios Refactorizados
   final AuthService _auth = AuthService.instance;
   final DatabaseService _db = DatabaseService.instance;
 
-  // 🔑 Variables de Autenticación
   GoogleSignInAccount? _usuario;
   GoogleSignInAccount? get usuario => _usuario;
   bool get estaLogueado => _usuario != null;
@@ -37,9 +35,8 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _estaCargandoFoto = false;
   bool get estaCargandoFoto => _estaCargandoFoto;
 
-  // 💎 Estado de Suscripción (TEMPORARILY DISABLED - COMING SOON: Forced to true for all users)
   bool _esPremium = true; 
-  bool get esPremium => true; // Forced getter
+  bool get esPremium => true; 
   
   DateTime? _vencimientoPremium;
   DateTime? get vencimientoPremium => _vencimientoPremium;
@@ -75,17 +72,14 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_vencimientoPremium == null) return "Expirado";
     final diff = _vencimientoPremium!.difference(DateTime.now());
     if (diff.isNegative) return "Expirado";
-    
     if (diff.inDays > 0) return "${diff.inDays}d ${diff.inHours % 24}h";
     if (diff.inHours > 0) return "${diff.inHours}h ${diff.inMinutes % 60}m";
     return "${diff.inMinutes}m";
   }
 
-  // 🔔 Preferencias de Notificaciones
   bool _notificacionesHabilitadas = true;
   bool get notificacionesHabilitadas => _notificacionesHabilitadas;
 
-  // 🤖 Opciones Premium: Auto-guardar
   bool _autoGuardarAlertas = false;
   bool get autoGuardarAlertas => _autoGuardarAlertas;
 
@@ -134,9 +128,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     _revisarLoginSilencioso();
     _escucharEstadisticasGlobales();
     Timer(const Duration(seconds: 5), () {
-      if (esAdmin) {
-        _actualizarBannersGlobalesDesdeApp();
-      }
+      if (esAdmin) _actualizarBannersGlobalesDesdeApp();
     });
   }
 
@@ -150,7 +142,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
       _totalUsuarios = snapshot.docs.length;
       notifyListeners();
     });
-
     _db.streamStatsGlobales().listen((doc) {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
@@ -158,7 +149,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifyListeners();
       }
     });
-
     _db.streamBanners().listen((doc) {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
@@ -167,7 +157,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifyListeners();
       }
     });
-
     _db.streamCategorias().listen((doc) {
       if (doc.exists) {
         final Map<String, dynamic> data = (doc.data() as Map<String, dynamic>) ?? {};
@@ -187,9 +176,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _revisarLoginSilencioso() async {
     _usuario = await _auth.signInSilently();
-    if (_usuario != null) {
-      await _sincronizarUsuarioDesdeFirestore();
-    }
+    if (_usuario != null) await _sincronizarUsuarioDesdeFirestore();
     notifyListeners();
   }
 
@@ -200,7 +187,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         _fotoPerfilUrl = data['foto'];
-        // Note: _esPremium is forced to true globally, but we keep sync for future use
         _planActual = data['planActual'];
         _soyAdminEnFirestore = data['esAdmin'] == true;
         _pruebaUsada = data['pruebaUsada'] == true;
@@ -214,9 +200,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         }
       }
       await _actualizarUsuarioEnFirestore();
-    } catch (e) {
-      print("Error sincronizando: $e");
-    }
+    } catch (e) {}
   }
 
   Future<void> _actualizarUsuarioEnFirestore() async {
@@ -227,7 +211,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         'nombre': _usuario!.displayName,
         'email': _usuario!.email,
         'foto': _usuario!.photoUrl,
-        'esPremium': true, // Forced for now
+        'esPremium': true,
         'vencimientoPremium': _vencimientoPremium?.toIso8601String(),
         'planActual': _planActual,
         'pruebaUsada': _pruebaUsada,
@@ -246,9 +230,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifyListeners();
         await _db.saveUsuario(_usuario!.id, {'fecha_registro': FieldValue.serverTimestamp()});
       }
-    } catch (error) {
-      rethrow;
-    }
+    } catch (error) { rethrow; }
   }
 
   Future<void> cerrarSesion() async {
@@ -278,9 +260,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         String dataUrl = "data:image/jpeg;base64,$base64Image";
         await _db.saveUsuario(_usuario!.id, {'foto': dataUrl});
         _fotoPerfilUrl = dataUrl;
-      } catch (e) {
-        print("❌ Error al guardar foto: $e");
-      } finally {
+      } catch (e) {} finally {
         _estaCargandoFoto = false;
         notifyListeners();
       }
@@ -291,7 +271,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
     const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
     await _notificationsPlugin.initialize(initializationSettings);
-    _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
   }
 
   void toggleVisibilidadCategoria(String slug) async {
@@ -300,9 +279,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         _categoriasVisibles.remove(slug);
         if (_categoria == slug) _categoria = _categoriasVisibles.first;
       }
-    } else {
-      _categoriasVisibles.add(slug);
-    }
+    } else _categoriasVisibles.add(slug);
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('categoriasVisibles', _categoriasVisibles);
@@ -462,13 +439,10 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String frecuenciaSeleccionada,
   }) async {
     _isEscaneando = true;
-    
-    // Always use full filters since Premium is forced to true
     _precioDesde = desde;
     _precioHasta = hasta;
     _palabraClave = palabraClave.trim();
     _frecuencia = frecuenciaSeleccionada;
-    
     _categoria = categoria;
     _cantidadEscaneos++;
     _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
@@ -479,7 +453,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     _actualizarNotificacionFija();
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_cantidadEscaneos % 30 == 0 && _proximaRevisionEnSegundos == 5) _actualizarNotificacionFija();
       if (_proximaRevisionEnSegundos > 0) {
         _proximaRevisionEnSegundos--;
         if (_appEnPrimerPlano) notifyListeners();
@@ -487,6 +460,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         _cantidadEscaneos++;
         _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
         _ejecutarScrapingReal();
+        _actualizarNotificacionFija();
       }
     });
   }
@@ -494,20 +468,17 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _ejecutarScrapingReal() async {
     List<Map<String, String>> acumulados = [];
     List<Map<String, String>> nuevos = [];
-    print("🚀 [Radar] Iniciando búsqueda exhaustiva (5 páginas max)...");
+    print("🚀 [Radar] Iniciando búsqueda...");
 
     for (int i = 1; i <= 5; i++) {
       if (!_isEscaneando) break;
-      print("📄 Escaneando página $i...");
       final results = await _obtenerResultadosDePagina(i);
-      
       for (var o in results) {
         if (!acumulados.any((x) => x['id'] == o['id'])) {
           acumulados.add(o);
           if (!_idsNotificados.contains(o['id'])) nuevos.add(o);
         }
       }
-      // Meta: 10 with keyword, 20 without
       if (acumulados.length >= (_palabraClave.isNotEmpty ? 10 : 20)) break;
     }
 
@@ -515,7 +486,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
       _ofertasEncontradas = acumulados;
       if (nuevos.isNotEmpty && _isEscaneando) {
         _dispararNotificacion(nuevos.length);
-        if (_autoGuardarAlertas) { // Enabled for all temporarily
+        if (_autoGuardarAlertas) {
           int count = 0;
           for (var n in nuevos) {
             if (count >= _maxAutoGuardados) break;
@@ -532,6 +503,8 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<List<Map<String, String>>> _obtenerResultadosDePagina(int pageNum) async {
     final completer = Completer<List<Map<String, String>>>();
+    
+    // 🌐 URL MAESTRA (La más fiable de Revolico)
     String sub = _subcategoria;
     if (sub.isNotEmpty && !sub.startsWith(_categoria)) sub = '$_categoria-$sub';
     String url = 'https://www.revolico.com/search?category=$_categoria${sub.isNotEmpty ? "&subcategory=$sub" : ""}&page=$pageNum';
@@ -539,87 +512,107 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     try {
       HeadlessInAppWebView? webView;
       bool done = false;
+      
       webView = HeadlessInAppWebView(
         initialUrlRequest: URLRequest(url: WebUri(url)),
         initialSettings: InAppWebViewSettings(
           cacheMode: CacheMode.LOAD_NO_CACHE,
           clearCache: true,
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         ),
         onLoadStop: (controller, url) async {
           if (done) return;
+          
+          // ⏱️ TIEMPO DE REVELADO (Crucial para cargar anuncios dinámicos)
+          await Future.delayed(const Duration(milliseconds: 2000));
+          
           done = true;
           final html = await controller.getHtml();
           List<Map<String, String>> res = [];
-          if (html != null) {
+          
+          if (html != null && html.length > 1000) {
             try {
-              // 🧪 EXTRACCIÓN ROBUSTA POR REGEX
-              final regexData = RegExp(r'<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>');
+              final regexData = RegExp(r'<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)</script>');
               final match = regexData.firstMatch(html);
               
+              Map<String, dynamic> apollo = {};
               if (match != null) {
-                String json = match.group(1)!.trim();
-                final data = jsonDecode(json);
-                final apollo = data['pageProps']?['__APOLLO_STATE__'] ?? data['props']?['pageProps']?['__APOLLO_STATE__'] ?? {};
-                
-                List<dynamic> items = [];
-                final Map<String, dynamic> root = Map<String, dynamic>.from(apollo['ROOT_QUERY'] ?? {});
-                String searchKey = "";
-                for (var key in root.keys) { if (key.toString().startsWith('search')) { searchKey = key.toString(); break; } }
+                final data = jsonDecode(match.group(1)!.trim());
+                apollo = data['props']?['pageProps']?['__APOLLO_STATE__'] ?? 
+                         data['pageProps']?['__APOLLO_STATE__'] ?? 
+                         data['__APOLLO_STATE__'] ?? {};
+              }
 
-                if (searchKey.isNotEmpty) items = root[searchKey]['results'] ?? [];
-                if (items.isEmpty) {
-                   apollo.forEach((k, v) { 
-                     if (v is Map && v.containsKey('title') && v.containsKey('price')) items.add(v); 
-                   });
-                }
-                
-                int min = int.tryParse(_precioDesde) ?? 0;
-                int max = int.tryParse(_precioHasta) ?? 999999;
+              List<dynamic> items = [];
+              // Intento 1: ROOT_QUERY (Ruta oficial de búsqueda)
+              final Map<String, dynamic> root = Map<String, dynamic>.from(apollo['ROOT_QUERY'] ?? {});
+              String searchKey = "";
+              for (var key in root.keys) { 
+                if (key.toString().startsWith('search')) { 
+                  searchKey = key.toString(); 
+                  break; 
+                } 
+              }
+              if (searchKey.isNotEmpty) items = root[searchKey]['results'] ?? [];
+              
+              // Intento 2: ESCÁNER PROFUNDO (Si la ruta falla, busca Ads en todo el mapa)
+              if (items.isEmpty) {
+                 apollo.forEach((k, v) { 
+                   if (v is Map && v.containsKey('title') && v.containsKey('price')) {
+                     if (v.containsKey('id') && !k.contains('FeaturedAd')) items.add(v);
+                   }
+                 });
+              }
+              
+              print("🔍 [Radar] Página $pageNum analizada. Objetos encontrados: ${items.length}");
+              
+              int min = int.tryParse(_precioDesde) ?? 0;
+              int max = int.tryParse(_precioHasta) ?? 999999;
 
-                for (var i in items) {
-                  var v = (i is Map && i.containsKey('__ref')) ? apollo[i['__ref']] : i;
-                  if (v is Map && v.containsKey('price') && v.containsKey('title')) {
-                    if (v['isFeatured'] == true || v['isPremium'] == true) continue;
-                    
-                    String titulo = v['title']?.toString() ?? '';
-                    String descripcion = v['description']?.toString() ?? '';
-                    
-                    // 💰 MANEJO DE PRECIO
-                    String pRaw = v['price']?.toString() ?? '0';
-                    String priceClean = pRaw.replaceAll(',', '.').replaceAll(RegExp(r'[^0-9.]'), '');
-                    double pDouble = double.tryParse(priceClean) ?? 0;
-                    int p = pDouble.floor();
-
-                    // 🚫 FILTRO DE PRECIO: Omitir anuncios con precio 0, 1 o fuera de rango
-                    if (p <= 1 || p < min || p > max) continue;
-
-                    if (_palabraClave.isNotEmpty) {
-                      String keyword = _palabraClave.toLowerCase().trim();
-                      if (!titulo.toLowerCase().contains(keyword) && !descripcion.toLowerCase().contains(keyword)) continue;
-                    }
-
-                    String permalink = v['permalink']?.toString() ?? '';
-                    res.add({
-                      'id': v['id']?.toString() ?? '',
-                      'titulo': titulo,
-                      'precio': p.toString(),
-                      'tiempo': 'Reciente',
-                      'ubicacion': 'Cuba',
-                      'enlace': "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink",
-                      'imagen': '',
-                      'detalles': descripcion,
-                    });
+              for (var i in items) {
+                var v = (i is Map && i.containsKey('__ref')) ? apollo[i['__ref']] : i;
+                if (v is Map && v.containsKey('price') && v.containsKey('title')) {
+                  if (v['isFeatured'] == true || v['isPremium'] == true) continue;
+                  
+                  String titulo = v['title']?.toString() ?? '';
+                  String descripcion = v['description']?.toString() ?? '';
+                  String pRaw = v['price']?.toString() ?? '0';
+                  String priceClean = pRaw.replaceAll(',', '.').replaceAll(RegExp(r'[^0-9.]'), '');
+                  int p = (double.tryParse(priceClean) ?? 0).floor();
+                  
+                  // FILTROS: Omitir basura y fuera de rango
+                  if (p <= 1 || p < min || p > max) continue;
+                  
+                  if (_palabraClave.isNotEmpty) {
+                    String kw = _palabraClave.toLowerCase().trim();
+                    if (!titulo.toLowerCase().contains(kw) && !descripcion.toLowerCase().contains(kw)) continue;
                   }
+                  
+                  String permalink = v['permalink']?.toString() ?? '';
+                  res.add({
+                    'id': v['id']?.toString() ?? '',
+                    'titulo': titulo,
+                    'precio': p.toString(),
+                    'tiempo': 'Reciente',
+                    'ubicacion': 'Cuba',
+                    'enlace': "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink",
+                    'imagen': '',
+                    'detalles': descripcion,
+                  });
                 }
               }
-            } catch (e) { print("Error parseando página $pageNum: $e"); }
+            } catch (e) {
+              print("❌ [Radar] Error en procesamiento: $e");
+            }
           }
           completer.complete(res);
           await webView?.dispose();
         },
       );
       await webView.run();
-    } catch (e) { completer.complete([]); }
+    } catch (e) {
+      completer.complete([]);
+    }
     return completer.future;
   }
 
@@ -632,19 +625,10 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
           String h = resp.body;
           var mImg = RegExp(r'<meta property="og:image" content="([^"]+)"').firstMatch(h);
           if (mImg != null) ofertas[i]['imagen'] = mImg.group(1)!;
-          
-          // 📍 EXTRACCIÓN DE LOCALIDAD MEJORADA (Municipio, Provincia)
-          // Intento 1: Por data-cy (más preciso)
           var mLoc1 = RegExp(r'data-cy="adLocation"[^>]*>([^<]+)</p>').firstMatch(h);
-          // Intento 2: Por span con formato "Texto, Texto"
           var mLoc2 = RegExp(r'<span>([^<]+,\s+[^<]+)</span>').firstMatch(h);
-          
-          if (mLoc1 != null) {
-            ofertas[i]['ubicacion'] = mLoc1.group(1)!.trim();
-          } else if (mLoc2 != null) {
-            ofertas[i]['ubicacion'] = mLoc2.group(1)!.trim();
-          }
-
+          if (mLoc1 != null) ofertas[i]['ubicacion'] = mLoc1.group(1)!.trim();
+          else if (mLoc2 != null) ofertas[i]['ubicacion'] = mLoc2.group(1)!.trim();
           var mWA = RegExp(r'https://wa\.me/(\d+)').firstMatch(h);
           if (mWA != null) ofertas[i]['whatsapp'] = mWA.group(1)!;
           var mTel = RegExp(r'href="tel:(\+?\d+)"').firstMatch(h);
@@ -700,12 +684,8 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void toggleFavorito(Map<String, String> oferta) async {
     final id = oferta['id'];
-    if (_ofertasGuardadas.any((o) => o['id'] == id)) {
-      _ofertasGuardadas.removeWhere((o) => o['id'] == id);
-    } else {
-      // Free limit removed temporarily
-      _ofertasGuardadas.add(oferta);
-    }
+    if (_ofertasGuardadas.any((o) => o['id'] == id)) _ofertasGuardadas.removeWhere((o) => o['id'] == id);
+    else _ofertasGuardadas.add(oferta);
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('favoritos', jsonEncode(_ofertasGuardadas));
@@ -732,18 +712,24 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _actualizarNotificacionFija() async {
     if (!_isEscaneando) return;
     const details = AndroidNotificationDetails(
-      'toofast_status_persistent_v3', 'Estado del Radar (Activo)',
-      importance: Importance.max, priority: Priority.high,
+      'toofast_status_persistent_v4', 'Radar TooFast',
+      importance: Importance.low, priority: Priority.low,
       ongoing: true, autoCancel: false, silent: true, onlyAlertOnce: true,
+      showWhen: true, usesChronometer: true,
       category: AndroidNotificationCategory.service, icon: '@mipmap/ic_launcher',
     );
-    await _notificationsPlugin.show(888, '🛰️ Radar TooFast Activo', 'Escaneando ${_subcategoria.isNotEmpty ? _subcategoria : _categoria}...', const NotificationDetails(android: details));
+    await _notificationsPlugin.show(
+      888, 
+      '🛰️ Radar en ejecución', 
+      'Buscando en ${_subcategoria.isNotEmpty ? _subcategoria : _categoria}...', 
+      const NotificationDetails(android: details)
+    );
   }
 
   Future<void> _dispararNotificacion(int count) async {
     if (!_notificacionesHabilitadas) return;
-    const details = AndroidNotificationDetails('toofast_radar_channel', 'Alertas de Radar', importance: Importance.max, priority: Priority.high);
-    await _notificationsPlugin.show(0, '⚡ ¡Filtro Activado!', 'Toofast cazó $count oferta(s).', const NotificationDetails(android: details));
+    const details = AndroidNotificationDetails('toofast_radar_channel', 'Alertas', importance: Importance.max, priority: Priority.high);
+    await _notificationsPlugin.show(0, '⚡ ¡Nuevas ofertas!', 'Toofast cazó $count anuncio(s).', const NotificationDetails(android: details));
   }
 
   @override

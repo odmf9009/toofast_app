@@ -22,13 +22,59 @@ class AlertasOfertasScreen extends StatelessWidget {
         title: const Center(child: Text('Oportunidades encontradas', 
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
         actions: [
+          // 📊 BOTÓN DE ORDENAMIENTO POR PRECIO
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort_rounded, color: AppColors.primary, size: 22),
+            tooltip: 'Ordenar por precio',
+            offset: const Offset(0, 50),
+            onSelected: (String result) {
+              toofastProvider.setOrdenPrecio(result);
+            },
+            color: AppColors.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppColors.border)),
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'desc',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_downward, color: toofastProvider.ordenPrecio == 'desc' ? AppColors.primary : AppColors.textGrey, size: 18),
+                    const SizedBox(width: 12),
+                    Text('Price: High to Low', style: TextStyle(color: toofastProvider.ordenPrecio == 'desc' ? AppColors.primary : Colors.white, fontSize: 13)),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'asc',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_upward, color: toofastProvider.ordenPrecio == 'asc' ? AppColors.primary : AppColors.textGrey, size: 18),
+                    const SizedBox(width: 12),
+                    Text('Price: Low to High', style: TextStyle(color: toofastProvider.ordenPrecio == 'asc' ? AppColors.primary : Colors.white, fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(height: 1),
+              PopupMenuItem<String>(
+                value: 'none',
+                child: Row(
+                  children: [
+                    Icon(Icons.history, color: toofastProvider.ordenPrecio == 'none' ? AppColors.primary : AppColors.textGrey, size: 18),
+                    const SizedBox(width: 12),
+                    Text('Default (Recent)', style: TextStyle(color: toofastProvider.ordenPrecio == 'none' ? AppColors.primary : Colors.white, fontSize: 13)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          // 🎯 INDICADOR DE HITS
           Container(
             margin: const EdgeInsets.only(right: 16, top: 12, bottom: 12),
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.2),
+                color: AppColors.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.primary, width: 1)
+                border: Border.all(color: AppColors.primary.withOpacity(0.5), width: 1)
             ),
             child: Center(
               child: Text('${ofertas.length} HITS', 

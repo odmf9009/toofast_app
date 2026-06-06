@@ -108,7 +108,31 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   int get proximaRevision => _proximaRevisionEnSegundos;
 
   List<Map<String, String>> _ofertasEncontradas = [];
-  List<Map<String, String>> get ofertasEncontradas => _ofertasEncontradas;
+  String _ordenPrecio = 'none'; // 'none', 'asc', 'desc'
+  String get ordenPrecio => _ordenPrecio;
+
+  void setOrdenPrecio(String orden) {
+    _ordenPrecio = orden;
+    notifyListeners();
+  }
+
+  List<Map<String, String>> get ofertasEncontradas {
+    List<Map<String, String>> lista = List.from(_ofertasEncontradas);
+    if (_ordenPrecio == 'asc') {
+      lista.sort((a, b) {
+        int pa = int.tryParse(a['precio'] ?? '0') ?? 0;
+        int pb = int.tryParse(b['precio'] ?? '0') ?? 0;
+        return pa.compareTo(pb);
+      });
+    } else if (_ordenPrecio == 'desc') {
+      lista.sort((a, b) {
+        int pa = int.tryParse(a['precio'] ?? '0') ?? 0;
+        int pb = int.tryParse(b['precio'] ?? '0') ?? 0;
+        return pb.compareTo(pa);
+      });
+    }
+    return lista;
+  }
 
   List<Map<String, String>> _ofertasGuardadas = [];
   List<Map<String, String>> get ofertasGuardadas => _ofertasGuardadas;
@@ -468,18 +492,36 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _ejecutarScrapingReal() async {
     List<Map<String, String>> acumulados = [];
     List<Map<String, String>> nuevos = [];
-    print("🚀 [Radar] Iniciando búsqueda...");
+    print("🚀 [Radar] Iniciando búsqueda paralela...");
 
-    for (int i = 1; i <= 5; i++) {
-      if (!_isEscaneando) break;
-      final results = await _obtenerResultadosDePagina(i);
+    // Ejecutamos las primeras 3 páginas en paralelo para máxima velocidad
+    final listadoPaginas = [1, 2, 3];
+    final resultadosParalelos = await Future.wait(
+      listadoPaginas.map((p) => _obtenerResultadosDePagina(p))
+    );
+
+    for (var results in resultadosParalelos) {
       for (var o in results) {
         if (!acumulados.any((x) => x['id'] == o['id'])) {
           acumulados.add(o);
           if (!_idsNotificados.contains(o['id'])) nuevos.add(o);
         }
       }
-      if (acumulados.length >= (_palabraClave.isNotEmpty ? 10 : 20)) break;
+    }
+
+    // Si aún necesitamos más (por filtros restrictivos), buscamos en las siguientes secuencialmente
+    if (acumulados.length < (_palabraClave.isNotEmpty ? 10 : 20)) {
+      for (int i = 4; i <= 5; i++) {
+        if (!_isEscaneando) break;
+        final results = await _obtenerResultadosDePagina(i);
+        for (var o in results) {
+          if (!acumulados.any((x) => x['id'] == o['id'])) {
+            acumulados.add(o);
+            if (!_idsNotificados.contains(o['id'])) nuevos.add(o);
+          }
+        }
+        if (acumulados.length >= (_palabraClave.isNotEmpty ? 10 : 20)) break;
+      }
     }
 
     if (acumulados.isNotEmpty) {
@@ -523,14 +565,14 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         onLoadStop: (controller, url) async {
           if (done) return;
           
-          // ⏱️ TIEMPO DE REVELADO (Crucial para cargar anuncios dinámicos)
-          await Future.delayed(const Duration(milliseconds: 2000));
+          // ⏱️ TIEMPO DE REVELADO OPTIMIZADO (Reducido a 800ms para mayor velocidad)
+          await Future.delayed(const Duration(milliseconds: 800));
           
           done = true;
           final html = await controller.getHtml();
           List<Map<String, String>> res = [];
           
-          if (html != null && html.length > 1000) {
+          if (html != null && html.contains('__NEXT_DATA__')) {
             try {
               final regexData = RegExp(r'<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)</script>');
               final match = regexData.firstMatch(html);
@@ -544,66 +586,97 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
               }
 
               List<dynamic> items = [];
-              // Intento 1: ROOT_QUERY (Ruta oficial de búsqueda)
+              // 🧪 ESTRATEGIA DE EXTRACCIÓN MULTI-CAPA
+              
+              // 1. Buscar en ROOT_QUERY
               final Map<String, dynamic> root = Map<String, dynamic>.from(apollo['ROOT_QUERY'] ?? {});
-              String searchKey = "";
               for (var key in root.keys) { 
-                if (key.toString().startsWith('search')) { 
-                  searchKey = key.toString(); 
-                  break; 
+                if (key.toString().contains('search') || key.toString().contains('ads')) { 
+                  final results = root[key]['results'];
+                  if (results is List && results.isNotEmpty) {
+                    items = results;
+                    break;
+                  }
                 } 
               }
-              if (searchKey.isNotEmpty) items = root[searchKey]['results'] ?? [];
               
-              // Intento 2: ESCÁNER PROFUNDO (Si la ruta falla, busca Ads en todo el mapa)
+              // 2. Si falla, buscar por tipo de objeto Ad
               if (items.isEmpty) {
                  apollo.forEach((k, v) { 
-                   if (v is Map && v.containsKey('title') && v.containsKey('price')) {
-                     if (v.containsKey('id') && !k.contains('FeaturedAd')) items.add(v);
+                   if (v is Map && v['__typename'] == 'Ad' || (v.containsKey('title') && v.containsKey('price'))) {
+                     if (v.containsKey('id') && !k.contains('FeaturedAd')) {
+                       items.add(v);
+                     }
                    }
                  });
               }
               
-              print("🔍 [Radar] Página $pageNum analizada. Objetos encontrados: ${items.length}");
+              // 3. Eliminar duplicados por ID
+              final seenIds = <String>{};
+              final uniqueItems = <dynamic>[];
+              for (var item in items) {
+                var v = (item is Map && item.containsKey('__ref')) ? apollo[item['__ref']] : item;
+                if (v != null && v.containsKey('id')) {
+                  String id = v['id'].toString();
+                  if (!seenIds.contains(id)) {
+                    seenIds.add(id);
+                    uniqueItems.add(v);
+                  }
+                }
+              }
+              
+              print("🔍 [Radar] Página $pageNum: ${uniqueItems.length} anuncios detectados.");
               
               int min = int.tryParse(_precioDesde) ?? 0;
               int max = int.tryParse(_precioHasta) ?? 999999;
 
-              for (var i in items) {
-                var v = (i is Map && i.containsKey('__ref')) ? apollo[i['__ref']] : i;
-                if (v is Map && v.containsKey('price') && v.containsKey('title')) {
-                  if (v['isFeatured'] == true || v['isPremium'] == true) continue;
-                  
-                  String titulo = v['title']?.toString() ?? '';
-                  String descripcion = v['description']?.toString() ?? '';
-                  String pRaw = v['price']?.toString() ?? '0';
-                  String priceClean = pRaw.replaceAll(',', '.').replaceAll(RegExp(r'[^0-9.]'), '');
-                  int p = (double.tryParse(priceClean) ?? 0).floor();
-                  
-                  // FILTROS: Omitir basura y fuera de rango
-                  if (p <= 1 || p < min || p > max) continue;
-                  
-                  if (_palabraClave.isNotEmpty) {
-                    String kw = _palabraClave.toLowerCase().trim();
-                    if (!titulo.toLowerCase().contains(kw) && !descripcion.toLowerCase().contains(kw)) continue;
-                  }
-                  
-                  String permalink = v['permalink']?.toString() ?? '';
-                  res.add({
-                    'id': v['id']?.toString() ?? '',
-                    'titulo': titulo,
-                    'precio': p.toString(),
-                    'tiempo': 'Reciente',
-                    'ubicacion': 'Cuba',
-                    'enlace': "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink",
-                    'imagen': '',
-                    'detalles': descripcion,
-                  });
+              for (var v in uniqueItems) {
+                if (v['isFeatured'] == true || v['isPremium'] == true) continue;
+                
+                String titulo = v['title']?.toString() ?? '';
+                String descripcion = v['description']?.toString() ?? '';
+                String pRaw = v['price']?.toString() ?? '0';
+                
+                // 💰 PARSEO DE PRECIO ROBUSTO
+                String numericOnly = pRaw.replaceAll(RegExp(r'[^0-9.,]'), '');
+                if (RegExp(r'[,.][0-9]{3}$').hasMatch(numericOnly)) {
+                  numericOnly = numericOnly.replaceAll(',', '').replaceAll('.', '');
+                } else {
+                  numericOnly = numericOnly.replaceAll(',', '.');
                 }
+                
+                int p = (double.tryParse(numericOnly) ?? 0).floor();
+
+                // FILTROS: Omitir $0, $1 y fuera de rango
+                if (p <= 1 || p < min || p > max) continue;
+                
+                if (_palabraClave.isNotEmpty) {
+                  String kw = _palabraClave.toLowerCase().trim();
+                  List<String> keywords = kw.split(' ').where((w) => w.length > 1).toList();
+                  bool match = keywords.isEmpty 
+                    ? (titulo.toLowerCase().contains(kw) || descripcion.toLowerCase().contains(kw))
+                    : keywords.every((k) => titulo.toLowerCase().contains(k) || descripcion.toLowerCase().contains(k));
+                  
+                  if (!match) continue;
+                }
+                
+                String permalink = v['permalink']?.toString() ?? '';
+                res.add({
+                  'id': v['id']?.toString() ?? '',
+                  'titulo': titulo,
+                  'precio': p.toString(),
+                  'tiempo': 'Reciente',
+                  'ubicacion': 'Cuba',
+                  'enlace': "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink",
+                  'imagen': '',
+                  'detalles': descripcion,
+                });
               }
             } catch (e) {
-              print("❌ [Radar] Error en procesamiento: $e");
+              print("❌ [Radar] Error parsing: $e");
             }
+          } else {
+            print("⚠️ [Radar] No se pudo obtener el HTML o no contiene datos Next.js");
           }
           completer.complete(res);
           await webView?.dispose();

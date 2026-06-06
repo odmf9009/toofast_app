@@ -77,31 +77,37 @@ class AppDrawer extends StatelessWidget {
                             iconColor: AppColors.primary,
                             collapsedIconColor: Colors.white60,
                             children: [
-                              ListTile(
-                                title: Text('Ver todo en $nombreBonito', 
-                                  style: TextStyle(color: isSelectedMain ? AppColors.primary : Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
-                                onTap: () {
-                                  provider.cambiarCategoria(catSlug);
-                                  Navigator.pop(context);
-                                },
-                                trailing: isSelectedMain ? const Icon(Icons.check, color: AppColors.primary, size: 18) : null,
+                              Material(
+                                color: Colors.transparent,
+                                child: ListTile(
+                                  title: Text('Ver todo en $nombreBonito', 
+                                    style: TextStyle(color: isSelectedMain ? AppColors.primary : Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                                  onTap: () {
+                                    provider.cambiarCategoria(catSlug);
+                                    Navigator.pop(context);
+                                  },
+                                  trailing: isSelectedMain ? const Icon(Icons.check, color: AppColors.primary, size: 18) : null,
+                                ),
                               ),
                               ...subcats.map((sub) {
                                 final bool isSelectedSub = provider.subcategoria == sub['slug'];
-                                return ListTile(
-                                  contentPadding: const EdgeInsets.only(left: 48, right: 16),
-                                  title: Text(sub['name'] ?? '', 
-                                    style: TextStyle(
-                                      color: isSelectedSub ? AppColors.primary : Colors.white60, 
-                                      fontSize: 13
-                                    )
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.only(left: 48, right: 16),
+                                    title: Text(sub['name'] ?? '', 
+                                      style: TextStyle(
+                                        color: isSelectedSub ? AppColors.primary : Colors.white60, 
+                                        fontSize: 13
+                                      )
+                                    ),
+                                    onTap: () {
+                                      provider.cambiarCategoria(catSlug);
+                                      provider.cambiarSubcategoria(sub['slug']!);
+                                      Navigator.pop(context);
+                                    },
+                                    trailing: isSelectedSub ? const Icon(Icons.check, color: AppColors.primary, size: 18) : null,
                                   ),
-                                  onTap: () {
-                                    provider.cambiarCategoria(catSlug);
-                                    provider.cambiarSubcategoria(sub['slug']!);
-                                    Navigator.pop(context);
-                                  },
-                                  trailing: isSelectedSub ? const Icon(Icons.check, color: AppColors.primary, size: 18) : null,
                                 );
                               }).toList(),
                             ],

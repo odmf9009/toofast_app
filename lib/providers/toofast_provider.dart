@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -475,6 +476,16 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
     _incrementarEstadisticasGlobales();
     notifyListeners();
+
+    if (Platform.isAndroid) {
+      // Android 13+: permiso de notificaciones (requerido para startForeground).
+      await Permission.notification.request();
+      // Android 12+: exención de batería para que WatchdogReceiver pueda
+      // reiniciar el servicio desde background sin ser bloqueado por el OS.
+      if (!await Permission.ignoreBatteryOptimizations.isGranted) {
+        await Permission.ignoreBatteryOptimizations.request();
+      }
+    }
 
     final service = FlutterBackgroundService();
     if (!await service.isRunning()) await service.startService();

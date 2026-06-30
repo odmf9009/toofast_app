@@ -10,6 +10,27 @@ const String _kFgChannelId = 'toofast_radar_fg';
 const String _kAlertChannelId = 'toofast_radar_channel';
 
 Future<void> initBackgroundService() async {
+  // Crear canales ANTES de configurar el servicio.
+  // Si el WatchdogReceiver intenta reiniciar el servicio antes de que la
+  // app abra, los canales ya existen y startForeground() no lanza excepción.
+  final notif = FlutterLocalNotificationsPlugin();
+  await notif.initialize(
+    const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    ),
+  );
+  final android = notif.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+  await android?.createNotificationChannel(const AndroidNotificationChannel(
+    _kFgChannelId, 'Radar Toofast',
+    importance: Importance.low,
+    playSound: false,
+    enableVibration: false,
+  ));
+  await android?.createNotificationChannel(const AndroidNotificationChannel(
+    _kAlertChannelId, 'Alertas Toofast',
+    importance: Importance.high,
+  ));
+
   final service = FlutterBackgroundService();
   await service.configure(
     androidConfiguration: AndroidConfiguration(

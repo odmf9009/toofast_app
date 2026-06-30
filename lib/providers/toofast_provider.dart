@@ -107,6 +107,11 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   int _proximaRevisionEnSegundos = 300;
   int get proximaRevision => _proximaRevisionEnSegundos;
 
+  StreamSubscription? _subUsuarios;
+  StreamSubscription? _subStats;
+  StreamSubscription? _subBanners;
+  StreamSubscription? _subCategorias;
+
   List<Map<String, String>> _ofertasEncontradas = [];
   String _ordenPrecio = 'none'; // 'none', 'asc', 'desc'
   String get ordenPrecio => _ordenPrecio;
@@ -162,18 +167,18 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _escucharEstadisticasGlobales() {
-    _db.streamTodosUsuarios().listen((snapshot) {
+    _subUsuarios = _db.streamTodosUsuarios().listen((snapshot) {
       _totalUsuarios = snapshot.docs.length;
       notifyListeners();
     });
-    _db.streamStatsGlobales().listen((doc) {
+    _subStats = _db.streamStatsGlobales().listen((doc) {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         _totalEscaneosGlobales = data['total_escaneos'] ?? 0;
         notifyListeners();
       }
     });
-    _db.streamBanners().listen((doc) {
+    _subBanners = _db.streamBanners().listen((doc) {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         final List<dynamic> urls = data['urls'] ?? [];
@@ -181,7 +186,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifyListeners();
       }
     });
-    _db.streamCategorias().listen((doc) {
+    _subCategorias = _db.streamCategorias().listen((doc) {
       if (doc.exists) {
         final Map<String, dynamic> data = (doc.data() as Map<String, dynamic>) ?? {};
         Map<String, List<Map<String, String>>> actualizadas = {};
@@ -224,7 +229,9 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         }
       }
       await _actualizarUsuarioEnFirestore();
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error sincronizando usuario: $e');
+    }
   }
 
   Future<void> _actualizarUsuarioEnFirestore() async {
@@ -243,7 +250,9 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         'favoritos': _ofertasGuardadas,
         'ultima_conexion': FieldValue.serverTimestamp(),
       });
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error guardando usuario en Firestore: $e');
+    }
   }
 
   Future<void> iniciarSesionGoogle() async {
@@ -284,7 +293,9 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         String dataUrl = "data:image/jpeg;base64,$base64Image";
         await _db.saveUsuario(_usuario!.id, {'foto': dataUrl});
         _fotoPerfilUrl = dataUrl;
-      } catch (e) {} finally {
+      } catch (e) {
+        debugPrint('Error cambiando foto de perfil: $e');
+      } finally {
         _estaCargandoFoto = false;
         notifyListeners();
       }
@@ -707,7 +718,9 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
           var mTel = RegExp(r'href="tel:(\+?\d+)"').firstMatch(h);
           if (mTel != null) ofertas[i]['telefono'] = mTel.group(1)!;
         }
-      } catch (e) {}
+      } catch (e) {
+        debugPrint('Error enriqueciendo oferta ${ofertas[i]["id"]}: $e');
+      }
       if (i % 3 == 0 || i == ofertas.length - 1) notifyListeners();
       await Future.delayed(const Duration(milliseconds: 300));
     }
@@ -748,11 +761,17 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         },
       );
       await webView.run();
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error actualizando banners: $e');
+    }
   }
 
   Future<void> _incrementarEstadisticasGlobales() async {
-    try { await _db.saveStatsGlobales({'total_escaneos': FieldValue.increment(1)}); } catch (e) {}
+    try {
+      await _db.saveStatsGlobales({'total_escaneos': FieldValue.increment(1)});
+    } catch (e) {
+      debugPrint('Error incrementando estadísticas: $e');
+    }
   }
 
   void toggleFavorito(Map<String, String> oferta) async {
@@ -806,10 +825,14 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   @override
-  void dispose() { 
+  void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _timer?.cancel(); 
-    super.dispose(); 
+    _timer?.cancel();
+    _subUsuarios?.cancel();
+    _subStats?.cancel();
+    _subBanners?.cancel();
+    _subCategorias?.cancel();
+    super.dispose();
   }
 
   int _convertirFrecuenciaASegundos(String v) {

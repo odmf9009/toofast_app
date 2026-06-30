@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'providers/toofast_provider.dart';
 import 'screens/main_navigation_screen.dart';
 import 'themes/app_theme.dart';
@@ -9,9 +10,11 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  
-  // Inicialización de Stripe
-  Stripe.publishableKey = "pk_live_51TZMGeHsB3vaNXFwbCYvKHxysyMzRgoLWgqg0N0XYe85QdxK3NHzImbethJ0jhFPa5xpGnLMF1LUl09T8nzwJfxl001G0CKNHo"; // REEMPLAZAR
+
+  await dotenv.load(fileName: ".env");
+  final stripeKey = dotenv.env['STRIPE_PUBLISHABLE_KEY'] ?? '';
+  assert(stripeKey.isNotEmpty, 'STRIPE_PUBLISHABLE_KEY missing from .env');
+  Stripe.publishableKey = stripeKey;
 
   await Firebase.initializeApp();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);

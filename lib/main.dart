@@ -7,6 +7,7 @@ import 'providers/toofast_provider.dart';
 import 'screens/main_navigation_screen.dart';
 import 'themes/app_theme.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'services/background_radar_service.dart';
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,7 @@ void main() async {
   Stripe.publishableKey = stripeKey;
 
   await Firebase.initializeApp();
+  await initBackgroundService();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   runApp(

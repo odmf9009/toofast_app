@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -104,6 +105,7 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   String _frecuencia = '5min';
   String get frecuencia => _frecuencia;
 
+  Timer? _timer;
   int _proximaRevisionEnSegundos = 300;
   int get proximaRevision => _proximaRevisionEnSegundos;
 
@@ -111,8 +113,6 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription? _subStats;
   StreamSubscription? _subBanners;
   StreamSubscription? _subCategorias;
-  StreamSubscription? _subResultados;
-  StreamSubscription? _subCountdown;
 
   List<Map<String, String>> _ofertasEncontradas = [];
   String _ordenPrecio = 'none'; // 'none', 'asc', 'desc'
@@ -144,6 +144,9 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   List<Map<String, String>> _ofertasGuardadas = [];
   List<Map<String, String>> get ofertasGuardadas => _ofertasGuardadas;
 
+  final Set<String> _idsNotificados = {};
+  final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+
   List<String> get listaCategorias => CategoryConstants.mainCategories;
 
   List<String> _categoriasVisibles = List.from(CategoryConstants.mainCategories);
@@ -152,9 +155,9 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
   ToofastProvider() {
     WidgetsBinding.instance.addObserver(this);
     _cargarDatosLocales();
+    _inicializarNotificaciones();
     _revisarLoginSilencioso();
     _escucharEstadisticasGlobales();
-    _reconectarServicioEnBackground();
     Timer(const Duration(seconds: 5), () {
       if (esAdmin) _actualizarBannersGlobalesDesdeApp();
     });
@@ -299,6 +302,12 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifyListeners();
       }
     }
+  }
+
+  Future<void> _inicializarNotificaciones() async {
+    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
+    await _notificationsPlugin.initialize(initializationSettings);
   }
 
   void toggleVisibilidadCategoria(String slug) async {
@@ -475,82 +484,259 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
     _cantidadEscaneos++;
     _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
     _incrementarEstadisticasGlobales();
+    // Vaciar resultados anteriores: la pestaña de alertas se limpia y mostrará
+    // los del nuevo escaneo a medida que lleguen.
+    _ofertasEncontradas = [];
+    _idsNotificados.clear();
     notifyListeners();
 
+    // El Foreground Service mantiene el proceso vivo (con prioridad alta) y
+    // muestra la notificación fija, para que el escaneo no se detenga al
+    // minimizar la app. El scraping real corre aquí, en el isolate principal,
+    // porque HeadlessInAppWebView (necesario para pasar Cloudflare) requiere
+    // el contexto de UI y no funciona en el isolate del servicio.
     if (Platform.isAndroid) {
-      // Android 13+: permiso de notificaciones (requerido para startForeground).
       await Permission.notification.request();
-      // Android 12+: exención de batería para que WatchdogReceiver pueda
-      // reiniciar el servicio desde background sin ser bloqueado por el OS.
       if (!await Permission.ignoreBatteryOptimizations.isGranted) {
         await Permission.ignoreBatteryOptimizations.request();
       }
     }
-
     final service = FlutterBackgroundService();
     if (!await service.isRunning()) await service.startService();
-    service.invoke('iniciar', {
-      'categoria': _categoria,
-      'subcategoria': _subcategoria,
-      'palabraClave': _palabraClave,
-      'precioDesde': _precioDesde,
-      'precioHasta': _precioHasta,
-      'frecuenciaSegundos': _convertirFrecuenciaASegundos(_frecuencia),
-    });
 
-    _subResultados?.cancel();
-    _subResultados = service.on('resultados').listen((data) async {
-      if (data == null || !_isEscaneando) return;
-      final raw = data['ofertas'] as List? ?? [];
-      final ofertas = raw.map<Map<String, String>>((o) {
-        final m = o as Map;
-        return m.map((k, v) => MapEntry(k.toString(), v.toString()));
-      }).toList();
-      if (ofertas.isEmpty) return;
-      _cantidadEscaneos++;
-      _ofertasEncontradas = ofertas;
-      notifyListeners();
-      if (_autoGuardarAlertas) {
-        final nuevos = ofertas.where((o) => !_ofertasGuardadas.any((f) => f['id'] == o['id'])).take(_maxAutoGuardados).toList();
-        if (nuevos.isNotEmpty) {
-          _ofertasGuardadas.addAll(nuevos);
-          if (estaLogueado) _actualizarUsuarioEnFirestore();
-        }
+    _ejecutarScrapingReal();
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_proximaRevisionEnSegundos > 0) {
+        _proximaRevisionEnSegundos--;
+        if (_appEnPrimerPlano) notifyListeners();
+      } else {
+        _cantidadEscaneos++;
+        _proximaRevisionEnSegundos = _convertirFrecuenciaASegundos(_frecuencia);
+        _ejecutarScrapingReal();
       }
-      _enriquecerDatosEnSegundoPlano(List.from(ofertas));
-    });
-
-    _subCountdown?.cancel();
-    _subCountdown = service.on('countdown').listen((data) {
-      if (data == null) return;
-      _proximaRevisionEnSegundos = data['segundos'] as int? ?? _proximaRevisionEnSegundos;
-      if (_appEnPrimerPlano) notifyListeners();
     });
   }
 
-  Future<void> _reconectarServicioEnBackground() async {
-    final service = FlutterBackgroundService();
-    if (!await service.isRunning()) return;
-    _isEscaneando = true;
-    _subResultados?.cancel();
-    _subResultados = service.on('resultados').listen((data) async {
-      if (data == null || !_isEscaneando) return;
-      final raw = data['ofertas'] as List? ?? [];
-      final ofertas = raw.map<Map<String, String>>((o) {
-        final m = o as Map;
-        return m.map((k, v) => MapEntry(k.toString(), v.toString()));
-      }).toList();
-      if (ofertas.isEmpty) return;
-      _ofertasEncontradas = ofertas;
+  Future<void> _ejecutarScrapingReal() async {
+    List<Map<String, String>> acumulados = [];
+    print("🚀 [Radar] Iniciando búsqueda paralela...");
+
+    // Mostrar los 25 primeros resultados en cada escaneo. Con palabra clave
+    // se pagina más profundo (hasta 15 páginas) porque las coincidencias
+    // pueden estar dispersas; sin palabra clave bastan pocas páginas.
+    final bool conPalabra = _palabraClave.isNotEmpty;
+    final int objetivo = 25;
+    final int maxPaginas = conPalabra ? 15 : 5;
+
+    void agregar(List<Map<String, String>> results) {
+      for (var o in results) {
+        if (!acumulados.any((x) => x['id'] == o['id'])) {
+          acumulados.add(o);
+        }
+      }
+    }
+
+    // Páginas 1-3 en paralelo para arranque rápido.
+    final resultadosParalelos = await Future.wait(
+      [1, 2, 3].map((p) => _obtenerResultadosDePagina(p))
+    );
+    for (var results in resultadosParalelos) {
+      agregar(results);
+    }
+
+    // Mostrar lo encontrado hasta ahora antes de seguir paginando.
+    if (acumulados.isNotEmpty) {
+      _ofertasEncontradas = conPalabra && acumulados.length > objetivo
+          ? acumulados.sublist(0, objetivo)
+          : acumulados;
       notifyListeners();
-    });
-    _subCountdown?.cancel();
-    _subCountdown = service.on('countdown').listen((data) {
-      if (data == null) return;
-      _proximaRevisionEnSegundos = data['segundos'] as int? ?? _proximaRevisionEnSegundos;
-      if (_appEnPrimerPlano) notifyListeners();
-    });
-    notifyListeners();
+    }
+
+    // Continuar página por página hasta alcanzar el objetivo de coincidencias.
+    int paginasVacias = 0;
+    for (int i = 4; i <= maxPaginas; i++) {
+      if (!_isEscaneando) break;
+      if (acumulados.length >= objetivo) break;
+      final results = await _obtenerResultadosDePagina(i);
+      // Si varias páginas seguidas no aportan nada, probablemente no hay más.
+      if (results.isEmpty) {
+        paginasVacias++;
+        if (paginasVacias >= 3) break;
+      } else {
+        paginasVacias = 0;
+      }
+      agregar(results);
+      // Refrescar la UI progresivamente a medida que llegan coincidencias.
+      if (acumulados.isNotEmpty) {
+        _ofertasEncontradas = acumulados.length > objetivo
+            ? acumulados.sublist(0, objetivo)
+            : List.from(acumulados);
+        notifyListeners();
+      }
+    }
+
+    // Recortar al objetivo (primeras N coincidencias).
+    if (acumulados.length > objetivo) {
+      acumulados = acumulados.sublist(0, objetivo);
+    }
+
+    if (acumulados.isNotEmpty) {
+      _ofertasEncontradas = acumulados;
+      // Solo se consideran "nuevos" los anuncios dentro de los 25 mostrados que
+      // no se hayan notificado antes, para que la notificación coincida con lo
+      // que ve el usuario en la lista.
+      final nuevos = acumulados.where((o) => !_idsNotificados.contains(o['id'])).toList();
+      if (nuevos.isNotEmpty && _isEscaneando) {
+        _dispararNotificacion(nuevos.length);
+        if (_autoGuardarAlertas) {
+          int count = 0;
+          for (var n in nuevos) {
+            if (count >= _maxAutoGuardados) break;
+            if (!_ofertasGuardadas.any((f) => f['id'] == n['id'])) { _ofertasGuardadas.add(n); count++; }
+          }
+          if (count > 0 && estaLogueado) _actualizarUsuarioEnFirestore();
+        }
+        for (var n in nuevos) _idsNotificados.add(n['id']!);
+      }
+      notifyListeners();
+      _enriquecerDatosEnSegundoPlano(acumulados);
+    }
+  }
+
+  Future<List<Map<String, String>>> _obtenerResultadosDePagina(int pageNum) async {
+    final completer = Completer<List<Map<String, String>>>();
+
+    String sub = _subcategoria;
+    if (sub.isNotEmpty && !sub.startsWith(_categoria)) sub = '$_categoria-$sub';
+    // Usar la búsqueda nativa de Revolico (parámetro q) para que el servidor
+    // devuelva las coincidencias ordenadas por más recientes, igual que la web.
+    final String q = _palabraClave.isNotEmpty ? 'q=${Uri.encodeComponent(_palabraClave)}&' : '';
+    String url = 'https://www.revolico.com/search?${q}category=$_categoria${sub.isNotEmpty ? "&subcategory=$sub" : ""}&page=$pageNum';
+
+    try {
+      HeadlessInAppWebView? webView;
+      bool done = false;
+
+      webView = HeadlessInAppWebView(
+        initialUrlRequest: URLRequest(url: WebUri(url)),
+        initialSettings: InAppWebViewSettings(
+          cacheMode: CacheMode.LOAD_NO_CACHE,
+          clearCache: true,
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ),
+        onLoadStop: (controller, url) async {
+          if (done) return;
+
+          await Future.delayed(const Duration(milliseconds: 800));
+
+          done = true;
+          final html = await controller.getHtml();
+          List<Map<String, String>> res = [];
+
+          if (html != null && html.contains('__NEXT_DATA__')) {
+            try {
+              final regexData = RegExp(r'<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)</script>');
+              final match = regexData.firstMatch(html);
+
+              Map<String, dynamic> apollo = {};
+              if (match != null) {
+                final data = jsonDecode(match.group(1)!.trim());
+                apollo = data['props']?['pageProps']?['__APOLLO_STATE__'] ??
+                         data['pageProps']?['__APOLLO_STATE__'] ??
+                         data['__APOLLO_STATE__'] ?? {};
+              }
+
+              List<dynamic> items = [];
+
+              final Map<String, dynamic> root = Map<String, dynamic>.from(apollo['ROOT_QUERY'] ?? {});
+              for (var key in root.keys) {
+                if (key.toString().contains('search') || key.toString().contains('ads')) {
+                  final results = root[key]['results'];
+                  if (results is List && results.isNotEmpty) {
+                    items = results;
+                    break;
+                  }
+                }
+              }
+
+              if (items.isEmpty) {
+                 apollo.forEach((k, v) {
+                   if (v is Map && v['__typename'] == 'Ad' || (v.containsKey('title') && v.containsKey('price'))) {
+                     if (v.containsKey('id') && !k.contains('FeaturedAd')) {
+                       items.add(v);
+                     }
+                   }
+                 });
+              }
+
+              final seenIds = <String>{};
+              final uniqueItems = <dynamic>[];
+              for (var item in items) {
+                var v = (item is Map && item.containsKey('__ref')) ? apollo[item['__ref']] : item;
+                if (v != null && v.containsKey('id')) {
+                  String id = v['id'].toString();
+                  if (!seenIds.contains(id)) {
+                    seenIds.add(id);
+                    uniqueItems.add(v);
+                  }
+                }
+              }
+
+              print("🔍 [Radar] Página $pageNum: ${uniqueItems.length} anuncios detectados.");
+
+              int min = int.tryParse(_precioDesde) ?? 0;
+              int max = int.tryParse(_precioHasta) ?? 999999;
+
+              for (var v in uniqueItems) {
+                if (v['isFeatured'] == true || v['isPremium'] == true) continue;
+
+                String titulo = v['title']?.toString() ?? '';
+                String descripcion = v['description']?.toString() ?? '';
+                String pRaw = v['price']?.toString() ?? '0';
+
+                String numericOnly = pRaw.replaceAll(RegExp(r'[^0-9.,]'), '');
+                if (RegExp(r'[,.][0-9]{3}$').hasMatch(numericOnly)) {
+                  numericOnly = numericOnly.replaceAll(',', '').replaceAll('.', '');
+                } else {
+                  numericOnly = numericOnly.replaceAll(',', '.');
+                }
+
+                int p = (double.tryParse(numericOnly) ?? 0).floor();
+
+                if (p <= 1 || p < min || p > max) continue;
+
+                // El filtrado por palabra clave lo hace Revolico vía el parámetro
+                // q en la URL, así que respetamos su orden (más recientes) y no
+                // re-filtramos localmente para no descartar coincidencias válidas.
+
+                String permalink = v['permalink']?.toString() ?? '';
+                res.add({
+                  'id': v['id']?.toString() ?? '',
+                  'titulo': titulo,
+                  'precio': p.toString(),
+                  'tiempo': 'Reciente',
+                  'ubicacion': 'Cuba',
+                  'enlace': "https://www.revolico.com${permalink.startsWith('/') ? '' : '/'}$permalink",
+                  'imagen': '',
+                  'detalles': descripcion,
+                });
+              }
+            } catch (e) {
+              print("❌ [Radar] Error parsing: $e");
+            }
+          } else {
+            print("⚠️ [Radar] No se pudo obtener el HTML o no contiene datos Next.js");
+          }
+          completer.complete(res);
+          await webView?.dispose();
+        },
+      );
+      await webView.run();
+    } catch (e) {
+      completer.complete([]);
+    }
+    return completer.future;
   }
 
   Future<void> _enriquecerDatosEnSegundoPlano(List<Map<String, String>> ofertas) async {
@@ -649,21 +835,26 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void detenerEscaneo() {
     _isEscaneando = false;
-    _subResultados?.cancel();
-    _subCountdown?.cancel();
+    _timer?.cancel();
+    // El Foreground Service posee la notificación 888 y la retira al detenerse.
     FlutterBackgroundService().invoke('detener', {});
     notifyListeners();
+  }
+
+  Future<void> _dispararNotificacion(int count) async {
+    if (!_notificacionesHabilitadas) return;
+    const details = AndroidNotificationDetails('toofast_radar_channel', 'Alertas', importance: Importance.max, priority: Priority.high);
+    await _notificationsPlugin.show(0, '⚡ ¡Nuevas ofertas!', 'Toofast cazó $count anuncio(s).', const NotificationDetails(android: details));
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
     _subUsuarios?.cancel();
     _subStats?.cancel();
     _subBanners?.cancel();
     _subCategorias?.cancel();
-    _subResultados?.cancel();
-    _subCountdown?.cancel();
     super.dispose();
   }
 

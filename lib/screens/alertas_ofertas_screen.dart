@@ -84,22 +84,10 @@ class AlertasOfertasScreen extends StatelessWidget {
         ],
       ),
       body: SafeArea(
-        child: !toofastProvider.isEscaneando
-            ? const Center(
-                child: Text('El radar está apagado.\nActívalo para empezar a cazar ofertas.', 
-                  textAlign: TextAlign.center, style: TextStyle(color: AppColors.textGrey, fontSize: 14))
-              )
-            : ofertas.isEmpty
-            ? Center(
-                child: Text(
-                  toofastProvider.palabraClave.isEmpty
-                      ? 'Escaneando Revolico...\nNo hay ofertas en este rango todavía.'
-                      : 'Escaneando Revolico...\nNo hay anuncios que coincidan con "${toofastProvider.palabraClave}".',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textGrey, fontSize: 14),
-                ),
-              )
-            : ListView.builder(
+        child: ofertas.isNotEmpty
+            // Mostrar resultados siempre que existan, escaneando o detenido,
+            // para que el usuario pueda revisarlos tras detener el radar.
+            ? ListView.builder(
           padding: const EdgeInsets.all(24.0),
           cacheExtent: 500, // ⚡️ OPTIMIZACIÓN: Precarga anuncios fuera de pantalla para scroll fluido
           itemCount: ofertas.length,
@@ -166,7 +154,21 @@ class AlertasOfertasScreen extends StatelessWidget {
               ],
             );
           },
-        ),
+        )
+            : toofastProvider.isEscaneando
+            ? Center(
+                child: Text(
+                  toofastProvider.palabraClave.isEmpty
+                      ? 'Escaneando Revolico...\nNo hay ofertas en este rango todavía.'
+                      : 'Escaneando Revolico...\nNo hay anuncios que coincidan con "${toofastProvider.palabraClave}".',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.textGrey, fontSize: 14),
+                ),
+              )
+            : const Center(
+                child: Text('El radar está apagado.\nActívalo para empezar a cazar ofertas.',
+                  textAlign: TextAlign.center, style: TextStyle(color: AppColors.textGrey, fontSize: 14))
+              ),
       ),
     );
   }

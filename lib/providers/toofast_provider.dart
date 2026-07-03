@@ -244,11 +244,9 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
         'nombre': _usuario!.displayName,
         'email': _usuario!.email,
         'foto': _usuario!.photoUrl,
-        'esPremium': true,
         'vencimientoPremium': _vencimientoPremium?.toIso8601String(),
         'planActual': _planActual,
         'pruebaUsada': _pruebaUsada,
-        'esAdmin': esAdmin,
         'favoritos': _ofertasGuardadas,
         'ultima_conexion': FieldValue.serverTimestamp(),
       });
@@ -609,14 +607,22 @@ class ToofastProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     String sub = _subcategoria;
     if (sub.isNotEmpty && !sub.startsWith(_categoria)) sub = '$_categoria-$sub';
-    // Usar la búsqueda nativa de Revolico (parámetro q) para que el servidor
-    // devuelva las coincidencias ordenadas por más recientes, igual que la web.
     final String q = _palabraClave.isNotEmpty ? 'q=${Uri.encodeComponent(_palabraClave)}&' : '';
     String url = 'https://www.revolico.com/search?${q}category=$_categoria${sub.isNotEmpty ? "&subcategory=$sub" : ""}&page=$pageNum';
 
     try {
       HeadlessInAppWebView? webView;
       bool done = false;
+
+      // Timeout: si onLoadStop nunca se dispara (error de red, redirect, TLS),
+      // resolvemos vacío para no colgar indefinidamente ni filtrar procesos nativos.
+      Future.delayed(const Duration(seconds: 30), () async {
+        if (!completer.isCompleted) {
+          done = true;
+          completer.complete([]);
+          await webView?.dispose();
+        }
+      });
 
       webView = HeadlessInAppWebView(
         initialUrlRequest: URLRequest(url: WebUri(url)),

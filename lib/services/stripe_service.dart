@@ -99,7 +99,8 @@ class StripeService {
   }
 
   String _calculateAmount(String amount) {
-    final calculatedAmount = (int.parse(amount)) * 100;
-    return calculatedAmount.toString();
+    final parsed = int.tryParse(amount) ?? (double.tryParse(amount) ?? 0.0).round();
+    if (parsed <= 0) throw ArgumentError('Invalid payment amount: $amount');
+    return (parsed * 100).toString();
   }
 }

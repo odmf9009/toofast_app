@@ -101,7 +101,11 @@ class PanelAdminUsuariosScreen extends StatelessWidget {
                   CircleAvatar(
                     backgroundImage: (data['foto'] != null && data['foto'].isNotEmpty)
                         ? (data['foto'].startsWith('data:image')
-                            ? MemoryImage(base64Decode(data['foto'].split(',')[1])) as ImageProvider
+                            ? () {
+                                final parts = (data['foto'] as String).split(',');
+                                if (parts.length < 2) return null;
+                                return MemoryImage(base64Decode(parts[1])) as ImageProvider;
+                              }()
                             : NetworkImage(data['foto']))
                         : null,
                     backgroundColor: Colors.grey[800],

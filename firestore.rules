@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Reads the caller's own Firestore doc to verify server-side admin status.
+    function isAdmin() {
+      return isSignedIn() &&
+             get(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+               .data.get('esAdmin', false) == true;
+    }
+
+    // Returns true if the incoming write touches fields only admins may set.
+    function writesAdminOnlyFields() {
+      let restricted = ['esPremium', 'esAdmin'];
+      return resource == null
+        ? request.resource.data.keys().hasAny(restricted)
+        : request.resource.data.diff(resource.data).affectedKeys().hasAny(restricted);
+    }
+
+    // ── usuarios ──────────────────────────────────────────────────────────────
+    match /usuarios/{userId} {
+      // All authenticated users can read (admin panel streams the full collection).
+      allow read: if isSignedIn();
+
+      // Owner can write their own doc but cannot touch esPremium / esAdmin.
+      allow write: if isSignedIn() && isOwner(userId) && !writesAdminOnlyFields();
+
+      // Admins can write any user doc with no field restrictions.
+      allow write: if isAdmin();
+    }
+
+    // ── stats/globales ────────────────────────────────────────────────────────
+    // Any authenticated user may increment total_escaneos; everything else is admin-only.
+    match /stats/globales {
+      allow read: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isSignedIn() &&
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['total_escaneos']);
+      allow delete: if isAdmin();
+    }
+
+    // ── stats/banners ─────────────────────────────────────────────────────────
+    match /stats/banners {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── stats/categorias ──────────────────────────────────────────────────────
+    match /stats/categorias {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── dispositivos_pruebas ──────────────────────────────────────────────────
+    // create-only for authenticated users: if the doc already exists Firestore
+    // rejects the write automatically, eliminating the TOCTOU race condition.
+    match /dispositivos_pruebas/{deviceId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // Everything else is denied by default.
+  }
+}
